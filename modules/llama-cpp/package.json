@@ -1,0 +1,7 @@
+{
+  "name": "llama-cpp",
+  "version": "1.0.0",
+  "description": "Custom Expo Module exposing llama.cpp JNI for local Gemma inference",
+  "main": "index.ts",
+  "private": true
+}
