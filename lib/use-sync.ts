@@ -1,46 +1,57 @@
 import { useEffect, useRef } from "react";
 import * as Network from "expo-network";
-import { syncEntries } from "./sync";
+import { isOnlineState, syncAll } from "./sync";
+import { useEntriesStore } from "../store/entries";
+import { usePreferencesStore } from "../store/preferences";
 
 /**
- * Hook that triggers a background sync whenever the device goes from offline → online.
- * Should be called once near the app root after the user is authenticated.
+ * Sync whenever the user is authenticated and the device is online:
+ * login / session restore, cold start while online, and offline → online.
+ * Should be called once near the app root.
  */
-export function useSyncOnReconnect(userId: string | null) {
+export function useSyncWhenOnline(userId: string | null) {
   const wasOnlineRef = useRef<boolean | null>(null);
 
   useEffect(() => {
     if (!userId) return;
 
     let cancelled = false;
+    wasOnlineRef.current = null;
 
-    async function checkAndSync() {
-      const state = await Network.getNetworkStateAsync();
-      const isOnline = state.isConnected === true && state.isInternetReachable !== false;
-
-      if (wasOnlineRef.current === false && isOnline) {
-        // Just came back online
-        try {
-          await syncEntries(userId!);
-        } catch {
-          // Sync errors are non-fatal; will retry on next reconnect
-        }
+    async function runSync() {
+      try {
+        await syncAll(userId!);
+        if (cancelled) return;
+        await useEntriesStore.getState().loadEntries(userId!);
+        await usePreferencesStore.getState().load(userId!);
+      } catch {
+        // Sync errors are non-fatal; will retry on next online transition
       }
+    }
 
+    async function handleNetworkState(state: Network.NetworkState) {
+      const isOnline = isOnlineState(state);
+      // First online sighting (null → true) or reconnect (false → true)
+      if (isOnline && wasOnlineRef.current !== true) {
+        await runSync();
+      }
       if (!cancelled) wasOnlineRef.current = isOnline;
     }
 
-    // Check immediately on mount
-    checkAndSync();
+    Network.getNetworkStateAsync().then((state) => {
+      if (!cancelled) handleNetworkState(state);
+    });
 
-    // Poll every 15 seconds
-    const interval = setInterval(() => {
-      if (!cancelled) checkAndSync();
-    }, 15000);
+    const subscription = Network.addNetworkStateListener((state) => {
+      handleNetworkState(state);
+    });
 
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      subscription.remove();
     };
   }, [userId]);
 }
+
+/** @deprecated Use useSyncWhenOnline */
+export const useSyncOnReconnect = useSyncWhenOnline;

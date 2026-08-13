@@ -14,7 +14,7 @@ import { initDatabase } from "../lib/database";
 import { useAuthStore } from "../store/auth";
 import { useModelStore } from "../store/model";
 import { useAiModeStore } from "../store/ai-mode";
-import { useSyncOnReconnect } from "../lib/use-sync";
+import { useSyncWhenOnline } from "../lib/use-sync";
 import { colors } from "../lib/theme";
 
 export default function RootLayout() {
@@ -22,7 +22,7 @@ export default function RootLayout() {
   const checkDownloaded = useModelStore((s) => s.checkDownloaded);
   const loadAiMode = useAiModeStore((s) => s.load);
   const userId = useAuthStore((s) => s.user?.id ?? null);
-  useSyncOnReconnect(userId);
+  useSyncWhenOnline(userId);
 
   const [fontsLoaded] = useFonts({
     Fraunces_400Regular,
