@@ -20,6 +20,7 @@ type TopBarProps = {
   onNewEntry: () => void;
   onReview: () => void;
   onReviewFocus: () => void;
+  onAiMode: () => void;
   onAppFeedback: () => void;
   onChangePassword?: () => void;
   onSignOut: () => void;
@@ -38,6 +39,7 @@ export function TopBar({
   onNewEntry,
   onReview,
   onReviewFocus,
+  onAiMode,
   onAppFeedback,
   onChangePassword,
   onSignOut,
@@ -117,6 +119,11 @@ export function TopBar({
           label="Review focus"
           icon={<SettingsIcon />}
           onPress={() => run(onReviewFocus)}
+        />
+        <MenuItem
+          label="AI review"
+          icon={<Text className="w-4 text-center text-[13px] font-semibold leading-4 text-pen">◎</Text>}
+          onPress={() => run(onAiMode)}
         />
         {canChangePassword && onChangePassword ? (
           <MenuItem

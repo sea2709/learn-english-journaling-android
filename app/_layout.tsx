@@ -13,12 +13,14 @@ import { supabase } from "../lib/supabase";
 import { initDatabase } from "../lib/database";
 import { useAuthStore } from "../store/auth";
 import { useModelStore } from "../store/model";
+import { useAiModeStore } from "../store/ai-mode";
 import { useSyncOnReconnect } from "../lib/use-sync";
 import { colors } from "../lib/theme";
 
 export default function RootLayout() {
   const setSession = useAuthStore((s) => s.setSession);
   const checkDownloaded = useModelStore((s) => s.checkDownloaded);
+  const loadAiMode = useAiModeStore((s) => s.load);
   const userId = useAuthStore((s) => s.user?.id ?? null);
   useSyncOnReconnect(userId);
 
@@ -50,6 +52,7 @@ export default function RootLayout() {
     });
 
     checkDownloaded().catch(console.error);
+    loadAiMode().catch(console.error);
 
     return () => {
       cancelled = true;
@@ -57,7 +60,8 @@ export default function RootLayout() {
     };
   }, []);
 
-  const ready = fontsLoaded && dbReady;
+  const aiModeLoaded = useAiModeStore((s) => s.loaded);
+  const ready = fontsLoaded && dbReady && aiModeLoaded;
 
   // Always mount <Stack> so Redirect / navigation have a NavigationContainer.
   return (
@@ -75,6 +79,7 @@ export default function RootLayout() {
       >
         <Stack.Screen name="index" />
         <Stack.Screen name="auth" />
+        <Stack.Screen name="ai-setup" />
         <Stack.Screen name="model-download" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="entries/[id]/index" options={{ headerShown: false }} />
