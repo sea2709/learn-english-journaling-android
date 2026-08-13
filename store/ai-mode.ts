@@ -1,4 +1,4 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 import { create } from "zustand";
 import type { AiMode } from "../lib/types";
 
@@ -19,7 +19,7 @@ export const useAiModeStore = create<AiModeState>((set) => ({
 
   load: async () => {
     try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
+      const raw = await SecureStore.getItemAsync(STORAGE_KEY);
       if (raw === "local" || raw === "api") {
         set({ mode: raw, chosen: true, loaded: true });
         return;
@@ -32,7 +32,12 @@ export const useAiModeStore = create<AiModeState>((set) => ({
   },
 
   setMode: async (mode) => {
-    await AsyncStorage.setItem(STORAGE_KEY, mode);
-    set({ mode, chosen: true });
+    try {
+      await SecureStore.setItemAsync(STORAGE_KEY, mode);
+      set({ mode, chosen: true });
+    } catch (error) {
+      console.error("Failed to save AI mode", error);
+      throw error;
+    }
   },
 }));

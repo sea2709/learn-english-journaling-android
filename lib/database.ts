@@ -104,7 +104,7 @@ export async function closeDatabase(): Promise<void> {
 // ── Entry CRUD ──────────────────────────────────────────────────────────────
 
 export async function getAllEntries(userId: string): Promise<StoredJournalEntry[]> {
-  const database = getDb();
+  const database = await initDatabase();
   const rows = await database.getAllAsync<{
     id: string;
     title: string;
@@ -137,7 +137,7 @@ export async function getAllEntries(userId: string): Promise<StoredJournalEntry[
 }
 
 export async function getEntry(id: string): Promise<StoredJournalEntry | null> {
-  const database = getDb();
+  const database = await initDatabase();
   const row = await database.getFirstAsync<{
     id: string;
     title: string;
@@ -196,7 +196,7 @@ async function getBlocksForEntry(entryId: string) {
 
 export async function saveEntry(entry: StoredJournalEntry, userId: string): Promise<void> {
   return enqueueWrite(async () => {
-    const database = getDb();
+    const database = await initDatabase();
     const now = new Date().toISOString();
 
     // Exclusive txn isolates queries on `txn` so overlapping app writes cannot share BEGIN/COMMIT.
@@ -259,7 +259,7 @@ export async function saveEntry(entry: StoredJournalEntry, userId: string): Prom
 
 export async function markEntryDeleted(entryId: string): Promise<void> {
   return enqueueWrite(async () => {
-    const database = getDb();
+    const database = await initDatabase();
     await database.runAsync(
       `UPDATE journal_entries SET sync_status = 'pending_delete', updated_at = ? WHERE id = ?`,
       [new Date().toISOString(), entryId]
@@ -269,7 +269,7 @@ export async function markEntryDeleted(entryId: string): Promise<void> {
 
 export async function deleteEntryLocal(entryId: string): Promise<void> {
   return enqueueWrite(async () => {
-    const database = getDb();
+    const database = await initDatabase();
     await database.runAsync(`DELETE FROM journal_entries WHERE id = ?`, [entryId]);
   });
 }
@@ -277,7 +277,7 @@ export async function deleteEntryLocal(entryId: string): Promise<void> {
 // ── Preferences ─────────────────────────────────────────────────────────────
 
 export async function loadPreferences(userId: string): Promise<AnalysisPreferences> {
-  const database = getDb();
+  const database = await initDatabase();
   const row = await database.getFirstAsync<{
     focus_areas_json: string;
     custom_note: string | null;
@@ -299,7 +299,7 @@ export async function savePreferences(
   prefs: AnalysisPreferences
 ): Promise<void> {
   return enqueueWrite(async () => {
-    const database = getDb();
+    const database = await initDatabase();
     const now = new Date().toISOString();
     await database.runAsync(
       `INSERT OR REPLACE INTO user_preferences
@@ -319,7 +319,7 @@ export async function addPendingImageUpload(params: {
   localPath: string;
 }): Promise<void> {
   return enqueueWrite(async () => {
-    const database = getDb();
+    const database = await initDatabase();
     await database.runAsync(
       `INSERT OR IGNORE INTO pending_image_uploads
        (id, entry_id, paragraph_id, local_path, created_at)
@@ -332,7 +332,7 @@ export async function addPendingImageUpload(params: {
 export async function getPendingImageUploads(): Promise<
   Array<{ id: string; entryId: string; paragraphId: string; localPath: string }>
 > {
-  const database = getDb();
+  const database = await initDatabase();
   const rows = await database.getAllAsync<{
     id: string;
     entry_id: string;
@@ -349,7 +349,7 @@ export async function getPendingImageUploads(): Promise<
 
 export async function removePendingImageUpload(id: string): Promise<void> {
   return enqueueWrite(async () => {
-    const database = getDb();
+    const database = await initDatabase();
     await database.runAsync(`DELETE FROM pending_image_uploads WHERE id = ?`, [id]);
   });
 }
@@ -359,7 +359,7 @@ export async function removePendingImageUpload(id: string): Promise<void> {
 export async function getPendingEntries(userId: string): Promise<
   Array<{ id: string; syncStatus: SyncStatus; updatedAt: string }>
 > {
-  const database = getDb();
+  const database = await initDatabase();
   const rows = await database.getAllAsync<{
     id: string;
     sync_status: string;
@@ -378,7 +378,7 @@ export async function getPendingEntries(userId: string): Promise<
 
 export async function markEntrySynced(entryId: string): Promise<void> {
   return enqueueWrite(async () => {
-    const database = getDb();
+    const database = await initDatabase();
     await database.runAsync(
       `UPDATE journal_entries SET sync_status = 'synced' WHERE id = ?`,
       [entryId]
