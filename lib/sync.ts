@@ -1,20 +1,22 @@
 /**
  * Sync engine: pull remote → compare updated_at → push/pull per entry.
  * Last-write-wins using updated_at timestamps.
- * Triggered on network reconnect.
+ * Triggered on login / online / reconnect via useSyncWhenOnline.
  */
+import * as Network from "expo-network";
 import { supabase } from "./supabase";
 import {
-  getAllEntries,
-  getEntry,
-  getPendingEntries,
+  getEntriesForSync,
   markEntrySynced,
   deleteEntryLocal,
   upsertRemoteEntry,
   getPendingImageUploads,
   removePendingImageUpload,
+  getPreferencesRecord,
+  upsertPreferencesSynced,
+  markPreferencesSynced,
 } from "./database";
-import type { StoredJournalEntry, SyncStatus } from "./types";
+import type { AnalysisPreferences, StoredJournalEntry } from "./types";
 
 // ── Remote schema mapping ────────────────────────────────────────────────────
 
@@ -49,6 +51,42 @@ function fromRemoteRow(row: {
   };
 }
 
+function isOnlineState(state: Network.NetworkState): boolean {
+  return state.isConnected === true && state.isInternetReachable !== false;
+}
+
+// ── Orchestration (dedupe concurrent runs) ───────────────────────────────────
+
+let inFlight: Promise<void> | null = null;
+let inFlightUserId: string | null = null;
+
+export async function syncAll(userId: string): Promise<void> {
+  if (inFlight && inFlightUserId === userId) return inFlight;
+
+  inFlightUserId = userId;
+  inFlight = (async () => {
+    await syncEntries(userId);
+    await syncPreferences(userId);
+  })().finally(() => {
+    if (inFlightUserId === userId) {
+      inFlight = null;
+      inFlightUserId = null;
+    }
+  });
+
+  return inFlight;
+}
+
+/** Sync when reachable; returns false if offline (no throw). */
+export async function syncAllIfOnline(userId: string): Promise<boolean> {
+  const state = await Network.getNetworkStateAsync();
+  if (!isOnlineState(state)) return false;
+  await syncAll(userId);
+  return true;
+}
+
+export { isOnlineState };
+
 // ── Main sync function ───────────────────────────────────────────────────────
 
 export async function syncEntries(userId: string): Promise<void> {
@@ -60,12 +98,10 @@ export async function syncEntries(userId: string): Promise<void> {
 
   if (error) throw error;
 
-  const remoteMap = new Map(
-    (remoteEntries ?? []).map((r) => [r.id, r])
-  );
+  const remoteMap = new Map((remoteEntries ?? []).map((r) => [r.id, r]));
 
   // 2. Get all local entries (including pending_delete)
-  const localEntries = await getAllEntries(userId);
+  const localEntries = await getEntriesForSync(userId);
 
   // 3. Process pending deletes first
   const pendingDeletes = localEntries.filter((e) => e.syncStatus === "pending_delete");
@@ -90,12 +126,13 @@ export async function syncEntries(userId: string): Promise<void> {
 
       if (local.syncStatus !== "synced") {
         if (localTime >= remoteTime) {
-          // Local is newer or equal — push
           await pushEntry(local, userId);
         } else {
-          // Remote is newer — pull
           await upsertRemoteEntry(fromRemoteRow(remote), userId);
         }
+      } else if (remoteTime > localTime) {
+        // Local marked synced but remote was updated elsewhere
+        await upsertRemoteEntry(fromRemoteRow(remote), userId);
       }
       remoteMap.delete(local.id);
     }
@@ -144,21 +181,76 @@ async function drainImageQueue(userId: string): Promise<void> {
 // ── Sync preferences ─────────────────────────────────────────────────────────
 
 export async function syncPreferences(userId: string): Promise<void> {
-  const { data: remote } = await supabase
+  const local = await getPreferencesRecord(userId);
+  const { data: remote, error } = await supabase
     .from("user_preferences")
     .select("focus_areas, custom_note, updated_at")
     .eq("user_id", userId)
-    .single();
+    .maybeSingle();
 
-  if (!remote) {
-    // Push local preferences
-    const { loadPreferences } = await import("./database");
-    const prefs = await loadPreferences(userId);
-    await supabase.from("user_preferences").upsert({
+  if (error) throw error;
+
+  if (!remote && !local) return;
+
+  if (!remote && local) {
+    await pushPreferences(userId, local.preferences, local.updatedAt);
+    return;
+  }
+
+  if (remote && !local) {
+    await upsertPreferencesSynced(
+      userId,
+      {
+        focusAreas: remote.focus_areas as AnalysisPreferences["focusAreas"],
+        customNote: remote.custom_note ?? undefined,
+      },
+      remote.updated_at
+    );
+    return;
+  }
+
+  const localTime = new Date(local!.updatedAt).getTime();
+  const remoteTime = new Date(remote!.updated_at).getTime();
+
+  if (local!.syncStatus !== "synced") {
+    if (localTime >= remoteTime) {
+      await pushPreferences(userId, local!.preferences, local!.updatedAt);
+    } else {
+      await upsertPreferencesSynced(
+        userId,
+        {
+          focusAreas: remote!.focus_areas as AnalysisPreferences["focusAreas"],
+          customNote: remote!.custom_note ?? undefined,
+        },
+        remote!.updated_at
+      );
+    }
+  } else if (remoteTime > localTime) {
+    await upsertPreferencesSynced(
+      userId,
+      {
+        focusAreas: remote!.focus_areas as AnalysisPreferences["focusAreas"],
+        customNote: remote!.custom_note ?? undefined,
+      },
+      remote!.updated_at
+    );
+  }
+}
+
+async function pushPreferences(
+  userId: string,
+  prefs: AnalysisPreferences,
+  updatedAt: string
+): Promise<void> {
+  const { error } = await supabase.from("user_preferences").upsert(
+    {
       user_id: userId,
       focus_areas: prefs.focusAreas,
       custom_note: prefs.customNote ?? null,
-      updated_at: new Date().toISOString(),
-    });
-  }
+      updated_at: updatedAt,
+    },
+    { onConflict: "user_id" }
+  );
+  if (error) throw error;
+  await markPreferencesSynced(userId);
 }

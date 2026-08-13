@@ -33,6 +33,7 @@ import {
 } from "../../lib/entry-utils";
 import type { JournalParagraph, Suggestion } from "../../lib/types";
 import { colors } from "../../lib/theme";
+import { syncAllIfOnline } from "../../lib/sync";
 import { PaperLoading } from "../../components/common/ui";
 
 export default function JournalHomeScreen() {
@@ -53,7 +54,7 @@ export default function JournalHomeScreen() {
     deleteEntry,
     clearCurrentEntry,
   } = useEntriesStore();
-  const { preferences, load: loadPrefs, loaded: prefsLoaded } = usePreferencesStore();
+  const { preferences, load: loadPrefs } = usePreferencesStore();
 
   const userId = user?.id ?? "";
   const [booting, setBooting] = useState(true);
@@ -65,7 +66,13 @@ export default function JournalHomeScreen() {
 
   const ensureJournalReady = useCallback(async () => {
     if (!userId) return;
-    if (!prefsLoaded) await loadPrefs(userId);
+    // Pull remote first when online so we don't create a duplicate "today" entry
+    try {
+      await syncAllIfOnline(userId);
+    } catch (e) {
+      console.error("Initial sync failed", e);
+    }
+    await loadPrefs(userId);
     await loadEntries(userId);
     const list = useEntriesStore.getState().entries;
     const today = findTodaysEntry(list);
@@ -80,7 +87,7 @@ export default function JournalHomeScreen() {
       await loadEntry(created.id);
     }
     setBooting(false);
-  }, [userId, prefsLoaded]);
+  }, [userId, loadPrefs, loadEntries, loadEntry, createEntry, updateEntry]);
 
   useEffect(() => {
     ensureJournalReady().catch((e) => {

@@ -136,6 +136,40 @@ export async function getAllEntries(userId: string): Promise<StoredJournalEntry[
   return entries;
 }
 
+/** Includes pending_delete tombstones for the sync engine. */
+export async function getEntriesForSync(userId: string): Promise<StoredJournalEntry[]> {
+  const database = await initDatabase();
+  const rows = await database.getAllAsync<{
+    id: string;
+    title: string;
+    date: string;
+    status: string;
+    sync_status: string;
+    updated_at: string;
+  }>(
+    `SELECT id, title, date, status, sync_status, updated_at
+     FROM journal_entries
+     WHERE user_id = ?
+     ORDER BY date DESC, updated_at DESC`,
+    [userId]
+  );
+
+  const entries: StoredJournalEntry[] = [];
+  for (const row of rows) {
+    const blocks = await getBlocksForEntry(row.id);
+    entries.push({
+      id: row.id,
+      title: row.title,
+      date: row.date,
+      status: row.status,
+      syncStatus: row.sync_status as SyncStatus,
+      updatedAt: row.updated_at,
+      blocks,
+    });
+  }
+  return entries;
+}
+
 export async function getEntry(id: string): Promise<StoredJournalEntry | null> {
   const database = await initDatabase();
   const row = await database.getFirstAsync<{
@@ -277,20 +311,36 @@ export async function deleteEntryLocal(entryId: string): Promise<void> {
 // ── Preferences ─────────────────────────────────────────────────────────────
 
 export async function loadPreferences(userId: string): Promise<AnalysisPreferences> {
+  const record = await getPreferencesRecord(userId);
+  return record?.preferences ?? DEFAULT_ANALYSIS_PREFERENCES;
+}
+
+export async function getPreferencesRecord(userId: string): Promise<{
+  preferences: AnalysisPreferences;
+  syncStatus: SyncStatus;
+  updatedAt: string;
+} | null> {
   const database = await initDatabase();
   const row = await database.getFirstAsync<{
     focus_areas_json: string;
     custom_note: string | null;
+    sync_status: string;
+    updated_at: string;
   }>(
-    `SELECT focus_areas_json, custom_note FROM user_preferences WHERE user_id = ?`,
+    `SELECT focus_areas_json, custom_note, sync_status, updated_at
+     FROM user_preferences WHERE user_id = ?`,
     [userId]
   );
 
-  if (!row) return DEFAULT_ANALYSIS_PREFERENCES;
+  if (!row) return null;
 
   return {
-    focusAreas: JSON.parse(row.focus_areas_json),
-    customNote: row.custom_note ?? undefined,
+    preferences: {
+      focusAreas: JSON.parse(row.focus_areas_json),
+      customNote: row.custom_note ?? undefined,
+    },
+    syncStatus: row.sync_status as SyncStatus,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -306,6 +356,32 @@ export async function savePreferences(
        (id, user_id, focus_areas_json, custom_note, sync_status, updated_at)
        VALUES ('local', ?, ?, ?, 'pending_update', ?)`,
       [userId, JSON.stringify(prefs.focusAreas), prefs.customNote ?? null, now]
+    );
+  });
+}
+
+export async function upsertPreferencesSynced(
+  userId: string,
+  prefs: AnalysisPreferences,
+  updatedAt: string
+): Promise<void> {
+  return enqueueWrite(async () => {
+    const database = await initDatabase();
+    await database.runAsync(
+      `INSERT OR REPLACE INTO user_preferences
+       (id, user_id, focus_areas_json, custom_note, sync_status, updated_at)
+       VALUES ('local', ?, ?, ?, 'synced', ?)`,
+      [userId, JSON.stringify(prefs.focusAreas), prefs.customNote ?? null, updatedAt]
+    );
+  });
+}
+
+export async function markPreferencesSynced(userId: string): Promise<void> {
+  return enqueueWrite(async () => {
+    const database = await initDatabase();
+    await database.runAsync(
+      `UPDATE user_preferences SET sync_status = 'synced' WHERE user_id = ?`,
+      [userId]
     );
   });
 }
