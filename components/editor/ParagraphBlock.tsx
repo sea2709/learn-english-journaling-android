@@ -58,10 +58,14 @@ export function ParagraphBlock({
       <View className="absolute left-0 top-3.5 h-[18px] w-1 rounded-sm bg-pen/45" />
       <TextInput
         className="min-h-[88px] p-0 font-mono text-base leading-7 text-ink-900"
+        style={{ backgroundColor: colors.paper }}
         value={paragraph.text}
         onChangeText={onTextChange}
         placeholder="Start writing… Enter for a new paragraph."
         placeholderTextColor={colors.ink300}
+        selectionColor={colors.penMuted}
+        cursorColor={colors.pen}
+        underlineColorAndroid="transparent"
         multiline
         maxLength={MAX_PARAGRAPH_CHARS}
         textAlignVertical="top"
