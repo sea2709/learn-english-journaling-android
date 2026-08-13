@@ -123,8 +123,12 @@ export default function EntryEditorScreen() {
         <ScrollView contentContainerClassName="p-5 pb-12" keyboardShouldPersistTaps="handled">
           <TextInput
             className="py-1 text-center font-display text-[28px] text-ink-900"
+            style={{ backgroundColor: colors.paper }}
             placeholder="Title"
             placeholderTextColor={colors.ink300}
+            selectionColor={colors.penMuted}
+            cursorColor={colors.pen}
+            underlineColorAndroid="transparent"
             value={entry.title}
             onChangeText={async (text) => {
               await updateEntry({ ...entry, title: text }, userId);
