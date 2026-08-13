@@ -1,0 +1,49 @@
+---
+description: Create a new git branch and worktree before implementing any feature
+alwaysApply: true
+---
+
+# Feature branch + worktree
+
+Before implementing a feature (or non-trivial fix), set up an isolated git worktree. Do not implement feature work on `main` in the primary checkout.
+
+## Workflow
+
+1. Confirm the current repo root and that you are not already in a feature worktree for this task.
+2. Create a descriptive branch name (e.g. `feat/top-bar-search`, `fix/journal-save`).
+3. Create a **new branch and a new worktree** in one step.
+4. Continue all implementation, commits, and PR work from that worktree path.
+
+## Commands
+
+Worktrees live **inside the workspace** under `.worktrees/<branch-slug>/`:
+
+```bash
+# From the primary repo checkout
+git fetch origin
+mkdir -p .worktrees
+git worktree add -b feat/short-description \
+  .worktrees/feat-short-description \
+  main
+```
+
+If the branch already exists:
+
+```bash
+git worktree add \
+  .worktrees/feat-short-description \
+  feat/short-description
+```
+
+## Rules
+
+- One feature → one branch → one worktree.
+- Prefer branching from up-to-date `main` unless the user specifies another base.
+- After creating the worktree, use that directory as the working directory for subsequent commands and edits.
+- Do not commit feature work in the primary `main` checkout.
+- Ensure `.worktrees/` is listed in `.gitignore` so nested checkouts are not tracked.
+- When cleaning up (only if the user asks): remove the worktree, then delete the branch if appropriate.
+
+```bash
+git worktree remove .worktrees/feat-short-description
+```
