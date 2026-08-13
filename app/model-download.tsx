@@ -1,21 +1,26 @@
 import { View, Text, TouchableOpacity, ActivityIndicator, Alert } from "react-native";
-import { Redirect, useRootNavigationState } from "expo-router";
+import { Redirect, useRootNavigationState, useRouter } from "expo-router";
 import { useModelStore } from "../store/model";
 import { useAuthStore } from "../store/auth";
+import { useAiModeStore } from "../store/ai-mode";
 import { colors } from "../lib/theme";
 
 const MODEL_SIZE_MB = 810;
 
 export default function ModelDownloadScreen() {
+  const router = useRouter();
   const { session } = useAuthStore();
+  const { mode, chosen, loaded: aiModeLoaded, setMode } = useAiModeStore();
   const { downloaded, downloading, downloadProgress, error, download } = useModelStore();
   const rootNavigationState = useRootNavigationState();
 
-  if (!rootNavigationState?.key) {
+  if (!rootNavigationState?.key || !aiModeLoaded) {
     return <View className="flex-1 items-center justify-center bg-paper" />;
   }
 
   if (!session) return <Redirect href="/auth" />;
+  if (!chosen) return <Redirect href="/ai-setup" />;
+  if (mode === "api") return <Redirect href="/(tabs)" />;
   if (downloaded) return <Redirect href="/(tabs)" />;
 
   async function handleDownload() {
@@ -29,6 +34,11 @@ export default function ModelDownloadScreen() {
     }
   }
 
+  async function switchToCloud() {
+    await setMode("api");
+    router.replace("/(tabs)");
+  }
+
   const progressPct = Math.round(downloadProgress * 100);
 
   return (
@@ -39,8 +49,8 @@ export default function ModelDownloadScreen() {
           Download AI Model
         </Text>
         <Text className="mb-6 text-center text-sm leading-[22px] text-ink-500">
-          Gemma 3 1B runs entirely on your device, so your writing stays private — just like the
-          coaching feedback in the web app, offline.
+          Gemma 3 1B runs entirely on your device, so your writing stays private and review works
+          offline after this one-time download.
         </Text>
 
         <View className="mb-6 w-full gap-2 rounded-[14px] border border-paper-line bg-white/55 p-4">
@@ -67,12 +77,21 @@ export default function ModelDownloadScreen() {
             <Text className="text-[13px] text-ink-500">{progressPct}% — Do not close the app</Text>
           </View>
         ) : (
-          <TouchableOpacity
-            className="w-full items-center rounded-full bg-ink-900 px-10 py-3.5"
-            onPress={handleDownload}
-          >
-            <Text className="text-[15px] font-semibold text-white">Download Model</Text>
-          </TouchableOpacity>
+          <View className="w-full gap-3">
+            <TouchableOpacity
+              className="w-full items-center rounded-full bg-ink-900 px-10 py-3.5"
+              onPress={handleDownload}
+            >
+              <Text className="text-[15px] font-semibold text-white">Download Model</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              className="w-full items-center rounded-full border border-paper-line bg-white/55 px-10 py-3"
+              onPress={switchToCloud}
+              activeOpacity={0.8}
+            >
+              <Text className="text-sm font-semibold text-ink-800">Use cloud AI instead</Text>
+            </TouchableOpacity>
+          </View>
         )}
       </View>
     </View>

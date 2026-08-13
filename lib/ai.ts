@@ -1,7 +1,6 @@
 /**
  * App-side AI layer.
- * Uses the native LlamaCpp module (custom Expo Module) for local inference.
- * Falls back gracefully if the model is not loaded.
+ * Dispatches to on-device LlamaCpp (local) or the web app API (api).
  */
 import {
   buildAnalysisPrompt,
@@ -11,7 +10,15 @@ import {
   parseAnalysisOutput,
   withSuggestionIds,
 } from "./ai-prompts";
+import {
+  analyzeEntryReview as apiAnalyzeEntryReview,
+  analyzeText as apiAnalyzeText,
+  askAboutParagraph as apiAskAboutParagraph,
+  askAboutSuggestion as apiAskAboutSuggestion,
+  isWebApiConfigured,
+} from "./ai-api";
 import { DEFAULT_ANALYSIS_PREFERENCES } from "./analysis-preferences";
+import { useAiModeStore } from "../store/ai-mode";
 import type {
   AnalysisPreferences,
   AnalysisResult,
@@ -19,7 +26,7 @@ import type {
   SuggestionMessage,
 } from "./types";
 
-// Maximum input lengths (same as web app constraints)
+// Maximum input lengths (same as web app constraints for paragraphs)
 export const MAX_PARAGRAPH_CHARS = 5000;
 export const MAX_ENTRY_CHARS = 12000;
 
@@ -45,7 +52,14 @@ export function isModelAvailable(): boolean {
   return LlamaCpp !== null;
 }
 
-async function generate(prompt: string): Promise<string> {
+function requireLocalMode(): void {
+  const { mode } = useAiModeStore.getState();
+  if (mode !== "local") {
+    throw new Error("On-device model is only available when local AI is selected.");
+  }
+}
+
+async function generateLocal(prompt: string): Promise<string> {
   if (!LlamaCpp) {
     throw new Error(
       "LlamaCpp native module not available. Run a native build (expo run:android)."
@@ -73,6 +87,18 @@ export async function isModelLoaded(): Promise<boolean> {
   return LlamaCpp.isModelLoaded();
 }
 
+/** True when the selected AI backend can run a real (non-mock) request. */
+export async function isAiReady(): Promise<boolean> {
+  const { mode, chosen } = useAiModeStore.getState();
+  if (!chosen || !mode) return false;
+  if (mode === "api") return isWebApiConfigured();
+  return isModelLoaded();
+}
+
+export function getActiveAiMode() {
+  return useAiModeStore.getState().mode;
+}
+
 // ── Public API ───────────────────────────────────────────────────────────────
 
 export async function analyzeParagraph(
@@ -80,9 +106,17 @@ export async function analyzeParagraph(
   preferences: AnalysisPreferences = DEFAULT_ANALYSIS_PREFERENCES
 ): Promise<AnalysisResult> {
   const capped = text.slice(0, MAX_PARAGRAPH_CHARS);
+  const mode = useAiModeStore.getState().mode;
+
+  if (mode === "api") {
+    const { analysis } = await apiAnalyzeText(capped, preferences);
+    return analysis;
+  }
+
+  requireLocalMode();
   const systemPrompt = buildAnalysisPrompt(preferences, "paragraph");
   const prompt = `${systemPrompt}\n\nPlease analyze this journal paragraph:\n\n${capped}`;
-  const raw = await generate(prompt);
+  const raw = await generateLocal(prompt);
   return parseAnalysisOutput(raw, preferences);
 }
 
@@ -91,19 +125,43 @@ export async function reviewEntry(
   preferences: AnalysisPreferences = DEFAULT_ANALYSIS_PREFERENCES
 ): Promise<AnalysisResult> {
   const capped = text.slice(0, MAX_ENTRY_CHARS);
+  const mode = useAiModeStore.getState().mode;
+
+  if (mode === "api") {
+    const { review } = await apiAnalyzeEntryReview(capped, preferences);
+    return review;
+  }
+
+  requireLocalMode();
   const systemPrompt = buildAnalysisPrompt(preferences, "entry");
   const prompt = `${systemPrompt}\n\nPlease review this full journal entry:\n\n${capped}`;
-  const raw = await generate(prompt);
+  const raw = await generateLocal(prompt);
   return parseAnalysisOutput(raw, preferences);
 }
 
 export async function discussSuggestion(params: {
   paragraphText: string;
-  suggestion: Pick<Suggestion, "category" | "original" | "suggestion" | "explanation">;
+  suggestion: Pick<
+    Suggestion,
+    "id" | "category" | "original" | "suggestion" | "explanation"
+  >;
   messages: SuggestionMessage[];
   preferences?: AnalysisPreferences;
 }): Promise<string> {
   const preferences = params.preferences ?? DEFAULT_ANALYSIS_PREFERENCES;
+  const mode = useAiModeStore.getState().mode;
+
+  if (mode === "api") {
+    const { reply } = await apiAskAboutSuggestion({
+      paragraphText: params.paragraphText,
+      suggestion: params.suggestion,
+      messages: params.messages,
+      preferences,
+    });
+    return reply;
+  }
+
+  requireLocalMode();
   const systemPrompt = buildSuggestionDiscussionPrompt(
     params.paragraphText,
     params.suggestion,
@@ -113,7 +171,7 @@ export async function discussSuggestion(params: {
     .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
     .join("\n\n");
   const prompt = `${systemPrompt}\n\nConversation so far:\n${history}\n\nAssistant:`;
-  return generate(prompt);
+  return generateLocal(prompt);
 }
 
 export async function discussParagraph(params: {
@@ -123,6 +181,19 @@ export async function discussParagraph(params: {
   preferences?: AnalysisPreferences;
 }): Promise<string> {
   const preferences = params.preferences ?? DEFAULT_ANALYSIS_PREFERENCES;
+  const mode = useAiModeStore.getState().mode;
+
+  if (mode === "api") {
+    const { reply } = await apiAskAboutParagraph({
+      paragraphText: params.paragraphText,
+      analysis: params.analysis,
+      messages: params.messages,
+      preferences,
+    });
+    return reply;
+  }
+
+  requireLocalMode();
   const systemPrompt = buildParagraphDiscussionPrompt(
     params.paragraphText,
     params.analysis,
@@ -132,7 +203,7 @@ export async function discussParagraph(params: {
     .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
     .join("\n\n");
   const prompt = `${systemPrompt}\n\nConversation so far:\n${history}\n\nAssistant:`;
-  return generate(prompt);
+  return generateLocal(prompt);
 }
 
 // ── Mock helpers for UI development without model ────────────────────────────

@@ -22,7 +22,8 @@ import { TopBar, ChangePasswordModal } from "../../../components/chrome/TopBar";
 import { EntriesDrawer } from "../../../components/chrome/EntriesDrawer";
 import { FeedbackForm } from "../../../components/chrome/FeedbackForm";
 import { ReviewFocusDrawer } from "../../../components/chrome/ReviewFocusDrawer";
-import { analyzeParagraph, getMockAnalysis, isModelLoaded } from "../../../lib/ai";
+import { AiModeDrawer } from "../../../components/chrome/AiModeDrawer";
+import { analyzeParagraph, getMockAnalysis, getActiveAiMode, isAiReady } from "../../../lib/ai";
 import {
   createParagraph,
   createImageBlock,
@@ -58,6 +59,7 @@ export default function EntryEditorScreen() {
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [reviewFocusOpen, setReviewFocusOpen] = useState(false);
+  const [aiModeOpen, setAiModeOpen] = useState(false);
 
   useEffect(() => {
     if (id) loadEntry(id);
@@ -108,6 +110,7 @@ export default function EntryEditorScreen() {
         onNewEntry={handleNewEntry}
         onReview={() => router.push(`/entries/${entry.id}/review`)}
         onReviewFocus={() => setReviewFocusOpen(true)}
+        onAiMode={() => setAiModeOpen(true)}
         onAppFeedback={() => setFeedbackOpen(true)}
         onChangePassword={() => setPasswordOpen(true)}
         onSignOut={handleSignOut}
@@ -170,8 +173,15 @@ export default function EntryEditorScreen() {
                 preferences={preferences}
                 onTextChange={(text) => updateBlock(entry.id, block.id, { text }, userId)}
                 onAnalyze={async () => {
-                  const modelReady = await isModelLoaded();
-                  const analysis = modelReady
+                  const ready = await isAiReady();
+                  if (!ready && getActiveAiMode() === "api") {
+                    Alert.alert(
+                      "Cloud AI unavailable",
+                      "Set EXPO_PUBLIC_WEB_API_URL to your web app URL, then restart the app."
+                    );
+                    return;
+                  }
+                  const analysis = ready
                     ? await analyzeParagraph(block.text, preferences)
                     : getMockAnalysis(block.text, preferences);
                   await setParagraphAnalysis(
@@ -262,6 +272,7 @@ export default function EntryEditorScreen() {
       />
       <FeedbackForm visible={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
       <ReviewFocusDrawer visible={reviewFocusOpen} onClose={() => setReviewFocusOpen(false)} />
+      <AiModeDrawer visible={aiModeOpen} onClose={() => setAiModeOpen(false)} />
     </View>
   );
 }

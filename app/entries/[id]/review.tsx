@@ -9,7 +9,7 @@ import {
 import { useLocalSearchParams } from "expo-router";
 import { useEntriesStore } from "../../../store/entries";
 import { usePreferencesStore } from "../../../store/preferences";
-import { reviewEntry, getMockAnalysis, isModelLoaded } from "../../../lib/ai";
+import { reviewEntry, getMockAnalysis, getActiveAiMode, isAiReady } from "../../../lib/ai";
 import { getTextBlocks } from "../../../lib/entry-utils";
 import { formatFocusAreasSummary } from "../../../lib/analysis-preferences";
 import type { AnalysisResult, Suggestion } from "../../../lib/types";
@@ -49,8 +49,15 @@ export default function EntryReviewScreen() {
 
     setLoading(true);
     try {
-      const modelReady = await isModelLoaded();
-      const result = modelReady
+      const ready = await isAiReady();
+      if (!ready && getActiveAiMode() === "api") {
+        Alert.alert(
+          "Cloud AI unavailable",
+          "Set EXPO_PUBLIC_WEB_API_URL to your web app URL, then restart the app."
+        );
+        return;
+      }
+      const result = ready
         ? await reviewEntry(fullText, preferences)
         : getMockAnalysis(fullText, preferences);
       setReview(result);

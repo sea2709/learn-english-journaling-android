@@ -8,6 +8,9 @@ export type SuggestionCategory =
 
 export type AnalysisFocusArea = SuggestionCategory;
 
+/** How AI review runs on this device. Device-local; not synced to Supabase. */
+export type AiMode = "local" | "api";
+
 export interface AnalysisPreferences {
   focusAreas: AnalysisFocusArea[];
   customNote?: string;
