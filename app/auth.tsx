@@ -1,13 +1,16 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   ActivityIndicator,
   ScrollView,
+  type NativeSyntheticEvent,
+  type TextInputFocusEventData,
 } from "react-native";
 import { Redirect, useRootNavigationState } from "expo-router";
 import { useAuthStore } from "../store/auth";
@@ -16,9 +19,13 @@ import { colors } from "../lib/theme";
 type Mode = "login" | "register";
 type Step = "choose" | "email";
 
+const KEYBOARD_BOTTOM_CUSHION = 24;
+
 export default function AuthScreen() {
   const { session, signInWithEmail, signUpWithEmail, signInWithGoogle } = useAuthStore();
   const rootNavigationState = useRootNavigationState();
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollFocusedInput = useRef<() => void>(() => {});
 
   const [mode, setMode] = useState<Mode>("login");
   const [step, setStep] = useState<Step>("choose");
@@ -28,6 +35,26 @@ export default function AuthScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSub = Keyboard.addListener(showEvent, (event) => {
+      setKeyboardHeight(event.endCoordinates.height);
+      // After layout updates for the keyboard, keep the focused field visible.
+      requestAnimationFrame(() => scrollFocusedInput.current());
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // Wait until the root navigator is mounted before Redirect.
   if (!rootNavigationState?.key) {
@@ -48,6 +75,35 @@ export default function AuthScreen() {
       : mode === "login"
         ? "Sign in to continue your writing practice."
         : "Create an account to save entries and sync across devices.";
+
+  const keyboardOpen = keyboardHeight > 0;
+
+  function handleInputFocus(event: NativeSyntheticEvent<TextInputFocusEventData>) {
+    const target = event.target;
+    const scrollIntoView = () => {
+      const responder = scrollRef.current as
+        | (ScrollView & {
+            getScrollResponder?: () => {
+              scrollResponderScrollNativeHandleToKeyboard?: (
+                nodeHandle: number | null,
+                additionalOffset?: number,
+                preventNegativeScrollOffset?: boolean
+              ) => void;
+            };
+          })
+        | null;
+      const scrollResponder = responder?.getScrollResponder?.();
+      scrollResponder?.scrollResponderScrollNativeHandleToKeyboard?.(
+        target,
+        KEYBOARD_BOTTOM_CUSHION + 48,
+        true
+      );
+    };
+
+    scrollFocusedInput.current = scrollIntoView;
+    // Delay so the keyboard height / content inset can apply first.
+    setTimeout(scrollIntoView, Platform.OS === "ios" ? 50 : 100);
+  }
 
   async function handleSubmit() {
     if (!email.trim() || !password.trim()) {
@@ -89,8 +145,19 @@ export default function AuthScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView
-        contentContainerClassName="grow justify-center p-6 py-12"
+        ref={scrollRef}
+        contentContainerClassName={`grow p-6 ${keyboardOpen ? "justify-start py-6" : "justify-center py-12"}`}
+        contentContainerStyle={{
+          // iOS: KeyboardAvoidingView + automaticallyAdjustKeyboardInsets handle inset.
+          // Android: add keyboard height so fields can scroll above an overlapping keyboard.
+          paddingBottom: keyboardOpen
+            ? Platform.OS === "ios"
+              ? KEYBOARD_BOTTOM_CUSHION
+              : keyboardHeight + KEYBOARD_BOTTOM_CUSHION
+            : 48,
+        }}
         keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
       >
         <View className="mb-7 items-center">
           <Text className="text-center font-display text-[30px] text-ink-900">{heading}</Text>
@@ -181,6 +248,7 @@ export default function AuthScreen() {
               style={{ backgroundColor: "rgba(247, 246, 243, 0.5)" }}
               value={email}
               onChangeText={setEmail}
+              onFocus={handleInputFocus}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -196,6 +264,7 @@ export default function AuthScreen() {
                 style={{ backgroundColor: "rgba(247, 246, 243, 0.5)" }}
                 value={password}
                 onChangeText={setPassword}
+                onFocus={handleInputFocus}
                 secureTextEntry={!showPassword}
                 editable={!loading}
               />
