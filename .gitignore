@@ -31,6 +31,7 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
 
 # typescript
@@ -42,3 +43,6 @@ yarn-error.*
 
 # feature git worktrees
 .worktrees/
+
+# vendored llama.cpp native sources
+modules/llama-cpp/android/src/main/cpp/llama.cpp/
