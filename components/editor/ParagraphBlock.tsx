@@ -5,6 +5,7 @@ import {
   TextInput,
   TouchableOpacity,
   LayoutAnimation,
+  Platform,
 } from "react-native";
 import type { JournalParagraph, Suggestion, AnalysisPreferences } from "../../lib/types";
 import { isParagraphStale } from "../../lib/entry-utils";
@@ -12,8 +13,12 @@ import { MAX_PARAGRAPH_CHARS } from "../../lib/ai";
 import { formatFocusAreasSummary } from "../../lib/analysis-preferences";
 import { SuggestionRow } from "./SuggestionRow";
 import { DiscussionThread } from "./DiscussionThread";
-import { colors } from "../../lib/theme";
+import { colors, fonts } from "../../lib/theme";
 import { PillButton, scoreToDisplay } from "../common/ui";
+
+const PARAGRAPH_FONT_SIZE = 16;
+const PARAGRAPH_LINE_HEIGHT = 28;
+const PARAGRAPH_MIN_HEIGHT = 88;
 
 interface Props {
   paragraph: JournalParagraph;
@@ -57,8 +62,17 @@ export function ParagraphBlock({
     <View className="relative mb-6 pl-3.5">
       <View className="absolute left-0 top-3.5 h-[18px] w-1 rounded-sm bg-pen/45" />
       <TextInput
-        className="min-h-[88px] p-0 font-mono text-base leading-7 text-ink-900"
-        style={{ backgroundColor: colors.paper }}
+        className="p-0 text-ink-900"
+        style={{
+          backgroundColor: colors.paper,
+          fontFamily: fonts.mono,
+          fontSize: PARAGRAPH_FONT_SIZE,
+          minHeight: PARAGRAPH_MIN_HEIGHT,
+          padding: 0,
+          ...(Platform.OS === "android"
+            ? { includeFontPadding: false }
+            : { lineHeight: PARAGRAPH_LINE_HEIGHT }),
+        }}
         value={paragraph.text}
         onChangeText={onTextChange}
         placeholder="Start writing… Enter for a new paragraph."
@@ -71,38 +85,45 @@ export function ParagraphBlock({
         textAlignVertical="top"
       />
 
-      {hasText && (
-        <View className="mt-3 flex-row flex-wrap items-center justify-between gap-2">
-          {isStale ? (
-            <Text className="text-[11px] font-semibold text-pen-muted">edited</Text>
-          ) : (
-            <View />
-          )}
-          <View className="flex-row flex-wrap items-center gap-2">
-            <TouchableOpacity onPress={onDelete} hitSlop={8}>
-              <Text className="px-1 text-[13px] text-coral-700">Delete</Text>
-            </TouchableOpacity>
-            {hasAnalysis && (
-              <PillButton
-                label="Ask questions"
-                onPress={() => setShowDiscussion((v) => !v)}
-              />
-            )}
+      <View
+        className="mt-3 flex-row flex-wrap items-center justify-between gap-2"
+        style={{ opacity: hasText ? 1 : 0 }}
+        pointerEvents={hasText ? "auto" : "none"}
+        accessibilityElementsHidden={!hasText}
+        importantForAccessibility={hasText ? "auto" : "no-hide-descendants"}
+      >
+        {isStale ? (
+          <Text className="text-[11px] font-semibold text-pen-muted">edited</Text>
+        ) : (
+          <View />
+        )}
+        <View className="flex-row flex-wrap items-center gap-2">
+          <TouchableOpacity onPress={onDelete} hitSlop={8}>
+            <Text className="px-1 text-[13px] text-coral-700">Delete</Text>
+          </TouchableOpacity>
+          {hasAnalysis && (
             <PillButton
-              label={analyzing ? "Reviewing" : hasAnalysis ? "Re-review" : "Review"}
-              onPress={handleAnalyze}
-              loading={analyzing}
-              penAccent
+              label="Ask questions"
+              onPress={() => setShowDiscussion((v) => !v)}
             />
-          </View>
+          )}
+          <PillButton
+            label={analyzing ? "Reviewing" : hasAnalysis ? "Re-review" : "Review"}
+            onPress={handleAnalyze}
+            loading={analyzing}
+            penAccent
+          />
         </View>
-      )}
+      </View>
 
-      {hasText && (
-        <Text className="mt-2 text-xs text-ink-400">
-          Review focus: {formatFocusAreasSummary(preferences.focusAreas)}
-        </Text>
-      )}
+      <Text
+        className="mt-2 text-xs text-ink-400"
+        style={{ opacity: hasText ? 1 : 0 }}
+        accessibilityElementsHidden={!hasText}
+        importantForAccessibility={hasText ? "auto" : "no-hide-descendants"}
+      >
+        Review focus: {formatFocusAreasSummary(preferences.focusAreas)}
+      </Text>
 
       {showDiscussion && (
         <DiscussionThread
