@@ -1,6 +1,6 @@
 import "../global.css";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Platform, StyleSheet, View } from "react-native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -51,7 +51,9 @@ export default function RootLayout() {
       setSession(session);
     });
 
-    checkDownloaded().catch(console.error);
+    if (Platform.OS !== "web") {
+      checkDownloaded().catch(console.error);
+    }
     loadAiMode().catch(console.error);
 
     return () => {

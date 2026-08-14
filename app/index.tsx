@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, ActivityIndicator } from "react-native";
+import { View, ActivityIndicator, Platform } from "react-native";
 import { Redirect, useRootNavigationState } from "expo-router";
 import { useAuthStore } from "../store/auth";
 import { useModelStore } from "../store/model";
@@ -40,11 +40,11 @@ export default function IndexScreen() {
     return <Redirect href="/auth" />;
   }
 
-  if (!chosen) {
+  if (Platform.OS !== "web" && !chosen) {
     return <Redirect href="/ai-setup" />;
   }
 
-  if (mode === "local" && !downloaded) {
+  if (Platform.OS !== "web" && mode === "local" && !downloaded) {
     return <Redirect href="/model-download" />;
   }
 
