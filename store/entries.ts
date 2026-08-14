@@ -7,7 +7,7 @@ import {
   markEntryDeleted,
   deleteEntryLocal,
 } from "../lib/database";
-import { toListItem, createParagraph, formatTodayISO } from "../lib/entry-utils";
+import { toListItem, createParagraph, formatTodayISO, newEntityId } from "../lib/entry-utils";
 import type { JournalEntryListItem } from "../lib/types";
 
 const MAX_ENTRIES = 50;
@@ -58,7 +58,7 @@ export const useEntriesStore = create<EntriesState>((set, get) => ({
     if (entries.length >= MAX_ENTRIES) {
       throw new Error(`Entry limit of ${MAX_ENTRIES} reached.`);
     }
-    const id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    const id = newEntityId();
     const now = new Date().toISOString();
     const entry: StoredJournalEntry = {
       id,
