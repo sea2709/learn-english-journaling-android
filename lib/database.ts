@@ -232,6 +232,7 @@ export async function saveEntry(entry: StoredJournalEntry, userId: string): Prom
   return enqueueWrite(async () => {
     const database = await initDatabase();
     const now = new Date().toISOString();
+    const updatedAt = entry.updatedAt || now;
 
     // Exclusive txn isolates queries on `txn` so overlapping app writes cannot share BEGIN/COMMIT.
     await database.withExclusiveTransactionAsync(async (txn) => {
@@ -254,7 +255,7 @@ export async function saveEntry(entry: StoredJournalEntry, userId: string): Prom
           entry.status,
           entry.syncStatus,
           now,
-          now,
+          updatedAt,
         ]
       );
 
@@ -275,7 +276,7 @@ export async function saveEntry(entry: StoredJournalEntry, userId: string): Prom
               block.analysis ? JSON.stringify(block.analysis) : null,
               block.analyzedText ?? null,
               block.discussion ? JSON.stringify(block.discussion) : null,
-              now,
+              updatedAt,
             ]
           );
         } else {
@@ -283,7 +284,7 @@ export async function saveEntry(entry: StoredJournalEntry, userId: string): Prom
             `INSERT INTO journal_paragraphs
              (id, entry_id, position, type, image_path, sync_status, updated_at)
              VALUES (?, ?, ?, 'image', ?, 'pending_create', ?)`,
-            [block.id, entry.id, i, block.path, now]
+            [block.id, entry.id, i, block.path, updatedAt]
           );
         }
       }
@@ -427,6 +428,13 @@ export async function removePendingImageUpload(id: string): Promise<void> {
   return enqueueWrite(async () => {
     const database = await initDatabase();
     await database.runAsync(`DELETE FROM pending_image_uploads WHERE id = ?`, [id]);
+  });
+}
+
+export async function removePendingImageUploadsForEntry(entryId: string): Promise<void> {
+  return enqueueWrite(async () => {
+    const database = await initDatabase();
+    await database.runAsync(`DELETE FROM pending_image_uploads WHERE entry_id = ?`, [entryId]);
   });
 }
 
