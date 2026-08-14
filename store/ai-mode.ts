@@ -1,8 +1,13 @@
-import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 import { create } from "zustand";
+import { secureStorage } from "../lib/secure-storage";
 import type { AiMode } from "../lib/types";
 
 const STORAGE_KEY = "aiMode";
+
+function isWeb(): boolean {
+  return Platform.OS === "web";
+}
 
 interface AiModeState {
   mode: AiMode | null;
@@ -18,8 +23,13 @@ export const useAiModeStore = create<AiModeState>((set) => ({
   loaded: false,
 
   load: async () => {
+    if (isWeb()) {
+      set({ mode: "api", chosen: true, loaded: true });
+      return;
+    }
+
     try {
-      const raw = await SecureStore.getItemAsync(STORAGE_KEY);
+      const raw = await secureStorage.getItem(STORAGE_KEY);
       if (raw === "local" || raw === "api") {
         set({ mode: raw, chosen: true, loaded: true });
         return;
@@ -32,9 +42,12 @@ export const useAiModeStore = create<AiModeState>((set) => ({
   },
 
   setMode: async (mode) => {
+    const next = isWeb() ? "api" : mode;
     try {
-      await SecureStore.setItemAsync(STORAGE_KEY, mode);
-      set({ mode, chosen: true });
+      if (!isWeb()) {
+        await secureStorage.setItem(STORAGE_KEY, next);
+      }
+      set({ mode: next, chosen: true });
     } catch (error) {
       console.error("Failed to save AI mode", error);
       throw error;

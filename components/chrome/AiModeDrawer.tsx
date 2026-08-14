@@ -1,4 +1,4 @@
-import { Alert, View, Text, TouchableOpacity } from "react-native";
+import { Alert, Platform, View, Text, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AnimatedDrawer } from "./AnimatedShell";
@@ -20,6 +20,11 @@ export function AiModeDrawer({ visible, onClose }: AiModeDrawerProps) {
   const { downloaded } = useModelStore();
 
   async function select(next: AiMode) {
+    if (Platform.OS === "web") {
+      await setMode("api");
+      onClose();
+      return;
+    }
     if (next === "api" && !isWebApiConfigured()) {
       Alert.alert(
         "Cloud AI unavailable",
@@ -54,7 +59,9 @@ export function AiModeDrawer({ visible, onClose }: AiModeDrawerProps) {
 
         <View className="gap-3 px-5 py-4">
           <Text className="mb-1 text-sm leading-[21px] text-ink-600">
-            Choose how paragraph review and coaching chats run on this device.
+            {Platform.OS === "web"
+              ? "Web always uses the Cloud AI API. On-device model download is only available in the mobile app."
+              : "Choose how paragraph review and coaching chats run on this device."}
           </Text>
 
           <OptionCard
@@ -63,16 +70,18 @@ export function AiModeDrawer({ visible, onClose }: AiModeDrawerProps) {
             selected={mode === "api"}
             onPress={() => select("api")}
           />
-          <OptionCard
-            title="On-device model"
-            description={
-              downloaded
-                ? "Gemma runs locally. Private and offline after download."
-                : "Requires downloading Gemma (~810 MB) once."
-            }
-            selected={mode === "local"}
-            onPress={() => select("local")}
-          />
+          {Platform.OS === "web" ? null : (
+            <OptionCard
+              title="On-device model"
+              description={
+                downloaded
+                  ? "Gemma runs locally. Private and offline after download."
+                  : "Requires downloading Gemma (~810 MB) once."
+              }
+              selected={mode === "local"}
+              onPress={() => select("local")}
+            />
+          )}
         </View>
       </View>
     </AnimatedDrawer>

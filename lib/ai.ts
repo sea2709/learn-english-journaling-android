@@ -2,6 +2,7 @@
  * App-side AI layer.
  * Dispatches to on-device LlamaCpp (local) or the web app API (api).
  */
+import { Platform } from "react-native";
 import {
   buildAnalysisPrompt,
   buildParagraphDiscussionPrompt,
@@ -41,11 +42,13 @@ let LlamaCpp: {
   isModelLoaded: () => Promise<boolean>;
 } | null = null;
 
-try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  LlamaCpp = require("../modules/llama-cpp").default;
-} catch {
-  // Module not available (dev without native build)
+if (Platform.OS !== "web") {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    LlamaCpp = require("../modules/llama-cpp").default;
+  } catch {
+    // Module not available (dev without native build)
+  }
 }
 
 export function isModelAvailable(): boolean {

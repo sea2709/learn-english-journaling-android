@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, ActivityIndicator, Alert } from "react-native";
+import { View, Text, TouchableOpacity, ActivityIndicator, Alert, Platform } from "react-native";
 import { Redirect, useRootNavigationState, useRouter } from "expo-router";
 import { useModelStore } from "../store/model";
 import { useAuthStore } from "../store/auth";
@@ -19,6 +19,7 @@ export default function ModelDownloadScreen() {
   }
 
   if (!session) return <Redirect href="/auth" />;
+  if (Platform.OS === "web") return <Redirect href="/(tabs)" />;
   if (!chosen) return <Redirect href="/ai-setup" />;
   if (mode === "api") return <Redirect href="/(tabs)" />;
   if (downloaded) return <Redirect href="/(tabs)" />;
