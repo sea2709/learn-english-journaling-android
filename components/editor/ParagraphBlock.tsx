@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,9 @@ import {
   TouchableOpacity,
   LayoutAnimation,
   Platform,
+  type NativeSyntheticEvent,
+  type TextInputKeyPressEventData,
+  type TextInputSelectionChangeEventData,
 } from "react-native";
 import type { JournalParagraph, Suggestion, AnalysisPreferences } from "../../lib/types";
 import { isParagraphStale } from "../../lib/entry-utils";
@@ -22,23 +25,46 @@ const PARAGRAPH_MIN_HEIGHT = 88;
 
 interface Props {
   paragraph: JournalParagraph;
+  index: number;
   preferences: AnalysisPreferences;
+  autoFocus?: boolean;
   onTextChange: (text: string) => void;
   onAnalyze: () => Promise<void>;
   onSuggestionUpdate: (suggestion: Suggestion) => void;
   onDiscussionChange: (messages: JournalParagraph["discussion"]) => void;
   onDelete: () => void;
+  onSplit: (cursorPos: number) => void;
+  onRemoveEmpty: () => void;
+  onFocusBlock: () => void;
+}
+
+/** Detect a single inserted newline (Return), not a multi-line paste. */
+function findSingleInsertedNewline(prev: string, next: string): number | null {
+  if (next.length !== prev.length + 1) return null;
+  let i = 0;
+  while (i < prev.length && prev[i] === next[i]) i += 1;
+  if (next[i] !== "\n") return null;
+  if (next.slice(0, i) + next.slice(i + 1) !== prev) return null;
+  return i;
 }
 
 export function ParagraphBlock({
   paragraph,
+  index,
   preferences,
+  autoFocus = false,
   onTextChange,
   onAnalyze,
   onSuggestionUpdate,
   onDiscussionChange,
   onDelete,
+  onSplit,
+  onRemoveEmpty,
+  onFocusBlock,
 }: Props) {
+  const inputRef = useRef<TextInput>(null);
+  const selectionRef = useRef({ start: 0, end: 0 });
+  const splitAtRef = useRef(0);
   const [analyzing, setAnalyzing] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [showDiscussion, setShowDiscussion] = useState(false);
@@ -46,6 +72,47 @@ export function ParagraphBlock({
   const hasAnalysis = paragraph.analysis !== null;
   const noteCount = paragraph.analysis?.suggestions.length ?? 0;
   const hasText = paragraph.text.trim().length > 0;
+
+  useEffect(() => {
+    if (autoFocus) inputRef.current?.focus();
+  }, [autoFocus, paragraph.id]);
+
+  function splitAt(cursorPos: number) {
+    const now = Date.now();
+    if (now - splitAtRef.current < 300) return;
+    splitAtRef.current = now;
+    onSplit(cursorPos);
+  }
+
+  function handleTextChange(text: string) {
+    const insertedAt = findSingleInsertedNewline(paragraph.text, text);
+    if (insertedAt !== null) {
+      splitAt(insertedAt);
+      return;
+    }
+    // Drop the IME's leftover "\n" update after Enter already split the block.
+    if (Date.now() - splitAtRef.current < 300 && text.includes("\n")) return;
+    onTextChange(text);
+  }
+
+  function handleSubmitEditing() {
+    splitAt(selectionRef.current.start);
+  }
+
+  function handleSelectionChange(e: NativeSyntheticEvent<TextInputSelectionChangeEventData>) {
+    selectionRef.current = e.nativeEvent.selection;
+  }
+
+  function handleKeyPress(e: NativeSyntheticEvent<TextInputKeyPressEventData>) {
+    if (
+      e.nativeEvent.key === "Backspace" &&
+      paragraph.text === "" &&
+      selectionRef.current.start === 0 &&
+      selectionRef.current.end === 0
+    ) {
+      onRemoveEmpty();
+    }
+  }
 
   async function handleAnalyze() {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -62,6 +129,7 @@ export function ParagraphBlock({
     <View className="relative mb-6 pl-3.5">
       <View className="absolute left-0 top-3.5 h-[18px] w-1 rounded-sm bg-pen/45" />
       <TextInput
+        ref={inputRef}
         className="p-0 text-ink-900"
         style={{
           backgroundColor: colors.paper,
@@ -74,8 +142,19 @@ export function ParagraphBlock({
             : { lineHeight: PARAGRAPH_LINE_HEIGHT }),
         }}
         value={paragraph.text}
-        onChangeText={onTextChange}
-        placeholder="Start writing… Enter for a new paragraph."
+        onChangeText={handleTextChange}
+        onFocus={onFocusBlock}
+        onSubmitEditing={handleSubmitEditing}
+        onSelectionChange={handleSelectionChange}
+        onKeyPress={handleKeyPress}
+        autoFocus={autoFocus}
+        blurOnSubmit={false}
+        submitBehavior="submit"
+        placeholder={
+          index === 0
+            ? "Start writing… Enter for a new paragraph."
+            : "Continue writing…"
+        }
         placeholderTextColor={colors.ink300}
         selectionColor={colors.penMuted}
         cursorColor={colors.pen}

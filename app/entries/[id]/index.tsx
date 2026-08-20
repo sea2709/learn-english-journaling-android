@@ -18,6 +18,7 @@ import { useEntriesStore } from "../../../store/entries";
 import { usePreferencesStore } from "../../../store/preferences";
 import { useModelStore } from "../../../store/model";
 import { ParagraphBlock } from "../../../components/editor/ParagraphBlock";
+import { AddImageButton } from "../../../components/editor/AddImageButton";
 import { TopBar, ChangePasswordModal } from "../../../components/chrome/TopBar";
 import { EntriesDrawer } from "../../../components/chrome/EntriesDrawer";
 import { FeedbackForm } from "../../../components/chrome/FeedbackForm";
@@ -25,10 +26,12 @@ import { ReviewFocusDrawer } from "../../../components/chrome/ReviewFocusDrawer"
 import { AiModeDrawer } from "../../../components/chrome/AiModeDrawer";
 import { analyzeParagraph, getMockAnalysis, getActiveAiMode, isAiReady } from "../../../lib/ai";
 import {
-  createParagraph,
   createImageBlock,
   formatTodayDisplay,
   getTextBlocks,
+  insertBlockAfter,
+  removeEmptyTextBlock,
+  splitTextBlock,
 } from "../../../lib/entry-utils";
 import type { JournalParagraph, Suggestion } from "../../../lib/types";
 import { colors } from "../../../lib/theme";
@@ -60,6 +63,9 @@ export default function EntryEditorScreen() {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [reviewFocusOpen, setReviewFocusOpen] = useState(false);
   const [aiModeOpen, setAiModeOpen] = useState(false);
+  const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
+  const [focusBlockId, setFocusBlockId] = useState<string | null>(null);
+  const [pickingImage, setPickingImage] = useState(false);
 
   useEffect(() => {
     if (id) loadEntry(id);
@@ -70,6 +76,11 @@ export default function EntryEditorScreen() {
   }, [id, userId]);
 
   const entry = currentEntry?.id === id ? currentEntry : null;
+
+  useEffect(() => {
+    setActiveBlockId(entry?.blocks[0]?.id ?? null);
+    setFocusBlockId(null);
+  }, [entry?.id]);
 
   async function handleNewEntry() {
     try {
@@ -99,6 +110,56 @@ export default function EntryEditorScreen() {
   if (!entry) return <PaperLoading />;
 
   const canReview = getTextBlocks(entry.blocks).some((b) => b.text.trim().length > 0);
+  const textIndexById = new Map<string, number>();
+  let textIndex = 0;
+  for (const block of entry.blocks) {
+    if (block.type === "text") {
+      textIndexById.set(block.id, textIndex);
+      textIndex += 1;
+    }
+  }
+
+  async function handleSplit(blockId: string, cursorPos: number) {
+    const result = splitTextBlock(entry.blocks, blockId, cursorPos);
+    if (!result) return;
+    setActiveBlockId(result.newParagraphId);
+    setFocusBlockId(result.newParagraphId);
+    await updateEntry({ ...entry, blocks: result.blocks }, userId);
+  }
+
+  async function handleRemoveEmpty(blockId: string) {
+    const result = removeEmptyTextBlock(entry.blocks, blockId);
+    if (!result) return;
+    setActiveBlockId(result.focusBlockId);
+    setFocusBlockId(result.focusBlockId);
+    await updateEntry({ ...entry, blocks: result.blocks }, userId);
+  }
+
+  async function handleDeleteBlock(blockId: string) {
+    const remaining = entry.blocks.filter((b) => b.id !== blockId);
+    if (remaining.length === 0) {
+      Alert.alert("Cannot delete", "An entry must have at least one paragraph.");
+      return;
+    }
+    await updateEntry({ ...entry, blocks: remaining }, userId);
+  }
+
+  async function handleAddImage() {
+    setPickingImage(true);
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.8,
+      });
+      if (result.canceled) return;
+      const imageBlock = createImageBlock(result.assets[0].uri);
+      const next = insertBlockAfter(entry.blocks, activeBlockId, imageBlock);
+      setActiveBlockId(imageBlock.id);
+      await updateEntry({ ...entry, blocks: next }, userId);
+    } finally {
+      setPickingImage(false);
+    }
+  }
 
   return (
     <View className="flex-1 bg-paper" style={{ paddingTop: insets.top }}>
@@ -148,7 +209,12 @@ export default function EntryEditorScreen() {
           {entry.blocks.map((block) => {
             if (block.type === "image") {
               return (
-                <View key={block.id} className="relative mb-4 overflow-hidden rounded-xl">
+                <TouchableOpacity
+                  key={block.id}
+                  className="relative mb-4 overflow-hidden rounded-xl"
+                  activeOpacity={1}
+                  onPress={() => setActiveBlockId(block.id)}
+                >
                   <Image
                     source={{ uri: block.path }}
                     className="h-[200px] w-full rounded-xl"
@@ -156,25 +222,20 @@ export default function EntryEditorScreen() {
                   />
                   <TouchableOpacity
                     className="absolute right-2 top-2 h-6 w-6 items-center justify-center rounded-xl bg-ink-950/55"
-                    onPress={async () => {
-                      const remaining = entry.blocks.filter((b) => b.id !== block.id);
-                      if (remaining.length === 0) {
-                        Alert.alert("Cannot delete", "An entry must have at least one paragraph.");
-                        return;
-                      }
-                      await updateEntry({ ...entry, blocks: remaining }, userId);
-                    }}
+                    onPress={() => handleDeleteBlock(block.id)}
                   >
                     <Text className="text-xs text-white">✕</Text>
                   </TouchableOpacity>
-                </View>
+                </TouchableOpacity>
               );
             }
             return (
               <ParagraphBlock
                 key={block.id}
                 paragraph={block}
+                index={textIndexById.get(block.id) ?? 0}
                 preferences={preferences}
+                autoFocus={block.id === focusBlockId}
                 onTextChange={(text) => updateBlock(entry.id, block.id, { text }, userId)}
                 onAnalyze={async () => {
                   const ready = await isAiReady();
@@ -215,45 +276,15 @@ export default function EntryEditorScreen() {
                 onDiscussionChange={(msgs: JournalParagraph["discussion"]) =>
                   updateBlock(entry.id, block.id, { discussion: msgs }, userId)
                 }
-                onDelete={async () => {
-                  const remaining = entry.blocks.filter((b) => b.id !== block.id);
-                  if (remaining.length === 0) {
-                    Alert.alert("Cannot delete", "An entry must have at least one paragraph.");
-                    return;
-                  }
-                  await updateEntry({ ...entry, blocks: remaining }, userId);
-                }}
+                onDelete={() => handleDeleteBlock(block.id)}
+                onSplit={(cursorPos) => handleSplit(block.id, cursorPos)}
+                onRemoveEmpty={() => handleRemoveEmpty(block.id)}
+                onFocusBlock={() => setActiveBlockId(block.id)}
               />
             );
           })}
 
-          <View className="mt-2 flex-row justify-between">
-            <TouchableOpacity
-              onPress={() =>
-                updateEntry({ ...entry, blocks: [...entry.blocks, createParagraph()] }, userId)
-              }
-            >
-              <Text className="text-sm font-medium text-sage-700">+ Add paragraph</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={async () => {
-                const result = await ImagePicker.launchImageLibraryAsync({
-                  mediaTypes: ["images"],
-                  quality: 0.8,
-                });
-                if (result.canceled) return;
-                await updateEntry(
-                  {
-                    ...entry,
-                    blocks: [...entry.blocks, createImageBlock(result.assets[0].uri)],
-                  },
-                  userId
-                );
-              }}
-            >
-              <Text className="text-sm font-medium text-sage-700">Add image</Text>
-            </TouchableOpacity>
-          </View>
+          <AddImageButton onPress={handleAddImage} disabled={pickingImage} />
         </ScrollView>
       </KeyboardAvoidingView>
 

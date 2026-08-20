@@ -46,6 +46,61 @@ export function createImageBlock(path: string): JournalImageBlock {
   };
 }
 
+/** Split a text block at `cursorPos`. Analysis stays on the left block. */
+export function splitTextBlock(
+  blocks: EntryBlock[],
+  id: string,
+  cursorPos: number
+): { blocks: EntryBlock[]; newParagraphId: string } | null {
+  const index = blocks.findIndex((block) => block.id === id);
+  if (index === -1) return null;
+
+  const block = blocks[index];
+  if (block.type !== "text") return null;
+
+  const clamped = Math.max(0, Math.min(cursorPos, block.text.length));
+  const newParagraph = createParagraph(block.text.slice(clamped));
+  const updated: JournalParagraph = { ...block, text: block.text.slice(0, clamped) };
+
+  return {
+    blocks: [...blocks.slice(0, index), updated, newParagraph, ...blocks.slice(index + 1)],
+    newParagraphId: newParagraph.id,
+  };
+}
+
+/** Insert `block` after `afterId`, or append if `afterId` is missing. */
+export function insertBlockAfter(
+  blocks: EntryBlock[],
+  afterId: string | null,
+  block: EntryBlock
+): EntryBlock[] {
+  const activeIndex = afterId ? blocks.findIndex((item) => item.id === afterId) : -1;
+  const insertAt = activeIndex >= 0 ? activeIndex + 1 : blocks.length;
+  return [...blocks.slice(0, insertAt), block, ...blocks.slice(insertAt)];
+}
+
+/**
+ * Remove an empty text block. No-op if it is not empty, not text, or the only block.
+ * Focus target is the previous block (or the new first block).
+ */
+export function removeEmptyTextBlock(
+  blocks: EntryBlock[],
+  id: string
+): { blocks: EntryBlock[]; focusBlockId: string } | null {
+  const index = blocks.findIndex((block) => block.id === id);
+  if (index === -1) return null;
+
+  const block = blocks[index];
+  if (block.type !== "text" || block.text !== "") return null;
+  if (blocks.length === 1) return null;
+
+  const next = blocks.filter((item) => item.id !== id);
+  const focusTarget = next[Math.max(0, index - 1)] ?? next[0];
+  if (!focusTarget) return null;
+
+  return { blocks: next, focusBlockId: focusTarget.id };
+}
+
 export function isTextBlock(block: EntryBlock): block is JournalParagraph {
   return block.type === "text";
 }

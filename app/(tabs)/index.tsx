@@ -18,6 +18,7 @@ import { useEntriesStore } from "../../store/entries";
 import { usePreferencesStore } from "../../store/preferences";
 import { useModelStore } from "../../store/model";
 import { ParagraphBlock } from "../../components/editor/ParagraphBlock";
+import { AddImageButton } from "../../components/editor/AddImageButton";
 import { TopBar, ChangePasswordModal } from "../../components/chrome/TopBar";
 import { EntriesDrawer } from "../../components/chrome/EntriesDrawer";
 import { FeedbackForm } from "../../components/chrome/FeedbackForm";
@@ -25,11 +26,13 @@ import { ReviewFocusDrawer } from "../../components/chrome/ReviewFocusDrawer";
 import { AiModeDrawer } from "../../components/chrome/AiModeDrawer";
 import { analyzeParagraph, getMockAnalysis, getActiveAiMode, isAiReady } from "../../lib/ai";
 import {
-  createParagraph,
   createImageBlock,
   findTodaysEntry,
   formatTodayDisplay,
   getTextBlocks,
+  insertBlockAfter,
+  removeEmptyTextBlock,
+  splitTextBlock,
 } from "../../lib/entry-utils";
 import type { JournalParagraph, Suggestion } from "../../lib/types";
 import { colors } from "../../lib/theme";
@@ -63,6 +66,9 @@ export default function JournalHomeScreen() {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [reviewFocusOpen, setReviewFocusOpen] = useState(false);
   const [aiModeOpen, setAiModeOpen] = useState(false);
+  const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
+  const [focusBlockId, setFocusBlockId] = useState<string | null>(null);
+  const [pickingImage, setPickingImage] = useState(false);
 
   const ensureJournalReady = useCallback(async () => {
     if (!userId) return;
@@ -97,6 +103,11 @@ export default function JournalHomeScreen() {
   }, [userId]);
 
   const entry = currentEntry;
+
+  useEffect(() => {
+    setActiveBlockId(entry?.blocks[0]?.id ?? null);
+    setFocusBlockId(null);
+  }, [entry?.id]);
 
   async function handleNewEntry() {
     try {
@@ -197,9 +208,22 @@ export default function JournalHomeScreen() {
     await updateBlock(entry.id, paragraphId, { discussion: messages }, userId);
   }
 
-  async function handleAddParagraph() {
+  async function handleSplit(blockId: string, cursorPos: number) {
     if (!entry || !userId) return;
-    await updateEntry({ ...entry, blocks: [...entry.blocks, createParagraph()] }, userId);
+    const result = splitTextBlock(entry.blocks, blockId, cursorPos);
+    if (!result) return;
+    setActiveBlockId(result.newParagraphId);
+    setFocusBlockId(result.newParagraphId);
+    await updateEntry({ ...entry, blocks: result.blocks }, userId);
+  }
+
+  async function handleRemoveEmpty(blockId: string) {
+    if (!entry || !userId) return;
+    const result = removeEmptyTextBlock(entry.blocks, blockId);
+    if (!result) return;
+    setActiveBlockId(result.focusBlockId);
+    setFocusBlockId(result.focusBlockId);
+    await updateEntry({ ...entry, blocks: result.blocks }, userId);
   }
 
   async function handleDeleteBlock(blockId: string) {
@@ -213,15 +237,21 @@ export default function JournalHomeScreen() {
   }
 
   async function handleAddImage() {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      quality: 0.8,
-    });
-    if (result.canceled || !entry || !userId) return;
-    await updateEntry(
-      { ...entry, blocks: [...entry.blocks, createImageBlock(result.assets[0].uri)] },
-      userId
-    );
+    if (!entry || !userId) return;
+    setPickingImage(true);
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.8,
+      });
+      if (result.canceled) return;
+      const imageBlock = createImageBlock(result.assets[0].uri);
+      const next = insertBlockAfter(entry.blocks, activeBlockId, imageBlock);
+      setActiveBlockId(imageBlock.id);
+      await updateEntry({ ...entry, blocks: next }, userId);
+    } finally {
+      setPickingImage(false);
+    }
   }
 
   if (booting || loading && !entry) {
@@ -262,6 +292,14 @@ export default function JournalHomeScreen() {
   }
 
   const canReview = getTextBlocks(entry.blocks).some((b) => b.text.trim().length > 0);
+  const textIndexById = new Map<string, number>();
+  let textIndex = 0;
+  for (const block of entry.blocks) {
+    if (block.type === "text") {
+      textIndexById.set(block.id, textIndex);
+      textIndex += 1;
+    }
+  }
 
   return (
     <View className="flex-1 bg-paper" style={{ paddingTop: insets.top }}>
@@ -297,7 +335,12 @@ export default function JournalHomeScreen() {
           {entry.blocks.map((block) => {
             if (block.type === "image") {
               return (
-                <View key={block.id} className="relative mb-4 overflow-hidden rounded-xl">
+                <TouchableOpacity
+                  key={block.id}
+                  className="relative mb-4 overflow-hidden rounded-xl"
+                  activeOpacity={1}
+                  onPress={() => setActiveBlockId(block.id)}
+                >
                   <Image
                     source={{ uri: block.path }}
                     className="h-[200px] w-full rounded-xl"
@@ -309,31 +352,29 @@ export default function JournalHomeScreen() {
                   >
                     <Text className="text-xs text-white">✕</Text>
                   </TouchableOpacity>
-                </View>
+                </TouchableOpacity>
               );
             }
             return (
               <ParagraphBlock
                 key={block.id}
                 paragraph={block}
+                index={textIndexById.get(block.id) ?? 0}
                 preferences={preferences}
+                autoFocus={block.id === focusBlockId}
                 onTextChange={(text) => handleTextChange(block.id, text)}
                 onAnalyze={() => handleAnalyze(block.id)}
                 onSuggestionUpdate={(s) => handleSuggestionUpdate(block.id, s)}
                 onDiscussionChange={(msgs) => handleDiscussionChange(block.id, msgs)}
                 onDelete={() => handleDeleteBlock(block.id)}
+                onSplit={(cursorPos) => handleSplit(block.id, cursorPos)}
+                onRemoveEmpty={() => handleRemoveEmpty(block.id)}
+                onFocusBlock={() => setActiveBlockId(block.id)}
               />
             );
           })}
 
-          <View className="mt-2 flex-row justify-between">
-            <TouchableOpacity onPress={handleAddParagraph}>
-              <Text className="text-sm font-medium text-sage-700">+ Add paragraph</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleAddImage}>
-              <Text className="text-sm font-medium text-sage-700">Add image</Text>
-            </TouchableOpacity>
-          </View>
+          <AddImageButton onPress={handleAddImage} disabled={pickingImage} />
         </ScrollView>
       </KeyboardAvoidingView>
 
