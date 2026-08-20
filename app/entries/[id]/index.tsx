@@ -135,15 +135,7 @@ export default function EntryEditorScreen() {
             }}
             maxLength={120}
           />
-          <View className="mb-2.5 mt-1 h-[3px] w-12 self-center rounded-sm bg-pen opacity-70" />
-          <Text className="mb-7 text-center text-xs text-ink-400">
-            {new Date(`${entry.date}T12:00:00`).toLocaleDateString("en-US", {
-              weekday: "long",
-              month: "long",
-              day: "numeric",
-              year: "numeric",
-            })}
-          </Text>
+          <View className="mb-7 mt-1 h-[3px] w-12 self-center rounded-sm bg-pen opacity-70" />
 
           {entry.blocks.map((block) => {
             if (block.type === "image") {
