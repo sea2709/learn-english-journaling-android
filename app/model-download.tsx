@@ -10,7 +10,7 @@ const MODEL_SIZE_MB = 810;
 export default function ModelDownloadScreen() {
   const router = useRouter();
   const { session } = useAuthStore();
-  const { mode, chosen, loaded: aiModeLoaded, setMode } = useAiModeStore();
+  const { mode, loaded: aiModeLoaded, setMode } = useAiModeStore();
   const { downloaded, downloading, downloadProgress, error, download } = useModelStore();
   const rootNavigationState = useRootNavigationState();
 
@@ -20,8 +20,7 @@ export default function ModelDownloadScreen() {
 
   if (!session) return <Redirect href="/auth" />;
   if (Platform.OS === "web") return <Redirect href="/(tabs)" />;
-  if (!chosen) return <Redirect href="/ai-setup" />;
-  if (mode === "api") return <Redirect href="/(tabs)" />;
+  if (mode !== "local") return <Redirect href="/(tabs)" />;
   if (downloaded) return <Redirect href="/(tabs)" />;
 
   async function handleDownload() {
