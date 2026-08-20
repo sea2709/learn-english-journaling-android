@@ -32,7 +32,6 @@ interface Props {
   onAnalyze: () => Promise<void>;
   onSuggestionUpdate: (suggestion: Suggestion) => void;
   onDiscussionChange: (messages: JournalParagraph["discussion"]) => void;
-  onDelete: () => void;
   onSplit: (cursorPos: number) => void;
   onRemoveEmpty: () => void;
   onFocusBlock: () => void;
@@ -57,7 +56,6 @@ export function ParagraphBlock({
   onAnalyze,
   onSuggestionUpdate,
   onDiscussionChange,
-  onDelete,
   onSplit,
   onRemoveEmpty,
   onFocusBlock,
@@ -176,15 +174,10 @@ export function ParagraphBlock({
           <View />
         )}
         <View className="flex-row flex-wrap items-center gap-2">
-          <TouchableOpacity onPress={onDelete} hitSlop={8}>
-            <Text className="px-1 text-[13px] text-coral-700">Delete</Text>
-          </TouchableOpacity>
-          {hasAnalysis && (
-            <PillButton
-              label="Ask questions"
-              onPress={() => setShowDiscussion((v) => !v)}
-            />
-          )}
+          <PillButton
+            label="Ask questions"
+            onPress={() => setShowDiscussion((v) => !v)}
+          />
           <PillButton
             label={analyzing ? "Reviewing" : hasAnalysis ? "Re-review" : "Review"}
             onPress={handleAnalyze}
@@ -193,15 +186,6 @@ export function ParagraphBlock({
           />
         </View>
       </View>
-
-      <Text
-        className="mt-2 text-xs text-ink-400"
-        style={{ opacity: hasText ? 1 : 0 }}
-        accessibilityElementsHidden={!hasText}
-        importantForAccessibility={hasText ? "auto" : "no-hide-descendants"}
-      >
-        Review focus: {formatFocusAreasSummary(preferences.focusAreas)}
-      </Text>
 
       {showDiscussion && (
         <DiscussionThread
@@ -212,6 +196,15 @@ export function ParagraphBlock({
           onMessagesChange={(msgs) => onDiscussionChange(msgs)}
         />
       )}
+
+      <Text
+        className="mt-2 text-xs text-ink-400"
+        style={{ opacity: hasText ? 1 : 0 }}
+        accessibilityElementsHidden={!hasText}
+        importantForAccessibility={hasText ? "auto" : "no-hide-descendants"}
+      >
+        Review focus: {formatFocusAreasSummary(preferences.focusAreas)}
+      </Text>
 
       {hasAnalysis && paragraph.analysis && (
         <View className="mt-3.5 border-l-2 border-pen/30 pl-3">
