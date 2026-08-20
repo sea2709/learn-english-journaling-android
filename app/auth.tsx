@@ -10,6 +10,7 @@ import {
   ScrollView,
   type FocusEvent,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Redirect, useRootNavigationState } from "expo-router";
 import { PillButton } from "../components/common/ui";
 import { useAuthStore } from "../store/auth";
@@ -23,6 +24,7 @@ const KEYBOARD_BOTTOM_CUSHION = 24;
 export default function AuthScreen() {
   const { session, signInWithEmail, signUpWithEmail, signInWithGoogle } = useAuthStore();
   const rootNavigationState = useRootNavigationState();
+  const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
   const scrollFocusedInput = useRef<() => void>(() => {});
 
@@ -31,7 +33,8 @@ export default function AuthScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [emailLoading, setEmailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -112,7 +115,7 @@ export default function AuthScreen() {
       setError("Please enter your email and password.");
       return;
     }
-    setLoading(true);
+    setEmailLoading(true);
     setError(null);
     setMessage(null);
     try {
@@ -125,19 +128,19 @@ export default function AuthScreen() {
     } catch (e) {
       setError(mode === "login" ? "Invalid email or password." : e instanceof Error ? e.message : "Something went wrong.");
     } finally {
-      setLoading(false);
+      setEmailLoading(false);
     }
   }
 
   async function handleGoogle() {
-    setLoading(true);
+    setGoogleLoading(true);
     setError(null);
     try {
       await signInWithGoogle();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Sign in was cancelled or failed.");
     } finally {
-      setLoading(false);
+      setGoogleLoading(false);
     }
   }
 
@@ -157,15 +160,16 @@ export default function AuthScreen() {
     >
       <ScrollView
         ref={scrollRef}
-        contentContainerClassName={`grow p-8 ${keyboardOpen ? "justify-start py-6" : "justify-center py-12"}`}
+        contentContainerClassName={`grow px-8 ${keyboardOpen ? "justify-start" : "justify-center"}`}
         contentContainerStyle={{
+          paddingTop: insets.top + (keyboardOpen ? 24 : 48),
           // iOS: KeyboardAvoidingView + automaticallyAdjustKeyboardInsets handle inset.
           // Android: add keyboard height so fields can scroll above an overlapping keyboard.
           paddingBottom: keyboardOpen
-            ? Platform.OS === "ios"
-              ? KEYBOARD_BOTTOM_CUSHION
-              : keyboardHeight + KEYBOARD_BOTTOM_CUSHION
-            : 48,
+            ? (Platform.OS === "ios"
+                ? KEYBOARD_BOTTOM_CUSHION
+                : keyboardHeight + KEYBOARD_BOTTOM_CUSHION) + insets.bottom
+            : insets.bottom + 48,
         }}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
@@ -181,8 +185,8 @@ export default function AuthScreen() {
             <PillButton
               label="Continue with Google"
               onPress={handleGoogle}
-              disabled={loading}
-              loading={loading}
+              disabled={googleLoading}
+              loading={googleLoading}
               fullWidth
             />
 
@@ -199,7 +203,6 @@ export default function AuthScreen() {
                 setMessage(null);
                 setStep("email");
               }}
-              disabled={loading}
               fullWidth
             />
 
@@ -234,7 +237,7 @@ export default function AuthScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
-              editable={!loading}
+              editable={!emailLoading}
               placeholder="you@example.com"
               placeholderTextColor={colors.ink400}
             />
@@ -249,7 +252,7 @@ export default function AuthScreen() {
                 onChangeText={setPassword}
                 onFocus={handleInputFocus}
                 secureTextEntry={!showPassword}
-                editable={!loading}
+                editable={!emailLoading}
                 placeholder="Your password"
                 placeholderTextColor={colors.ink400}
               />
@@ -257,6 +260,7 @@ export default function AuthScreen() {
                 onPress={() => setShowPassword((v) => !v)}
                 className="absolute right-3 top-3"
                 hitSlop={8}
+                disabled={emailLoading}
               >
                 <Text className="text-xs font-semibold text-sage-700">
                   {showPassword ? "Hide" : "Show"}
@@ -279,8 +283,8 @@ export default function AuthScreen() {
               <PillButton
                 label={mode === "login" ? "Sign in" : "Create account"}
                 onPress={handleSubmit}
-                disabled={loading}
-                loading={loading}
+                disabled={emailLoading}
+                loading={emailLoading}
                 fullWidth
                 variant="primary"
               />
