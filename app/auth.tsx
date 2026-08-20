@@ -13,6 +13,8 @@ import {
   type TextInputFocusEventData,
 } from "react-native";
 import { Redirect, useRootNavigationState } from "expo-router";
+import { SocialAuthButtons } from "../components/SocialAuthButtons";
+import type { SocialAuthProvider } from "../lib/oauth";
 import { useAuthStore } from "../store/auth";
 import { colors } from "../lib/theme";
 
@@ -22,7 +24,13 @@ type Step = "choose" | "email";
 const KEYBOARD_BOTTOM_CUSHION = 24;
 
 export default function AuthScreen() {
-  const { session, signInWithEmail, signUpWithEmail, signInWithGoogle } = useAuthStore();
+  const {
+    session,
+    signInWithEmail,
+    signUpWithEmail,
+    signInWithGoogle,
+    signInWithFacebook,
+  } = useAuthStore();
   const rootNavigationState = useRootNavigationState();
   const scrollRef = useRef<ScrollView>(null);
   const scrollFocusedInput = useRef<() => void>(() => {});
@@ -33,6 +41,7 @@ export default function AuthScreen() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [oauthProvider, setOauthProvider] = useState<SocialAuthProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -127,15 +136,19 @@ export default function AuthScreen() {
     }
   }
 
-  async function handleGoogle() {
-    setLoading(true);
+  async function handleOAuth(provider: SocialAuthProvider) {
+    setOauthProvider(provider);
     setError(null);
     try {
-      await signInWithGoogle();
+      if (provider === "google") {
+        await signInWithGoogle();
+      } else {
+        await signInWithFacebook();
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Sign in was cancelled or failed.");
     } finally {
-      setLoading(false);
+      setOauthProvider(null);
     }
   }
 
@@ -179,17 +192,12 @@ export default function AuthScreen() {
 
         {step === "choose" ? (
           <View className="gap-4">
-            <TouchableOpacity
-              className="items-center rounded-full border border-ink-200 bg-white py-3"
-              onPress={handleGoogle}
+            <SocialAuthButtons
+              loadingProvider={oauthProvider}
               disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color={colors.ink800} />
-              ) : (
-                <Text className="text-sm font-medium text-ink-800">Continue with Google</Text>
-              )}
-            </TouchableOpacity>
+              error={error}
+              onPress={handleOAuth}
+            />
 
             <View className="flex-row items-center gap-3">
               <View className="h-px flex-1 bg-ink-200" />
@@ -203,6 +211,7 @@ export default function AuthScreen() {
                 setError(null);
                 setStep("email");
               }}
+              disabled={oauthProvider !== null}
             >
               <Text className="text-sm font-medium text-ink-800">
                 Sign {mode === "login" ? "in" : "up"} with email
