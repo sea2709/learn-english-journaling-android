@@ -87,8 +87,7 @@ export function ParagraphBlock({
 
       <View
         className="mt-3 flex-row flex-wrap items-center justify-between gap-2"
-        style={{ opacity: hasText ? 1 : 0 }}
-        pointerEvents={hasText ? "auto" : "none"}
+        style={{ opacity: hasText ? 1 : 0, pointerEvents: hasText ? "auto" : "none" }}
         accessibilityElementsHidden={!hasText}
         importantForAccessibility={hasText ? "auto" : "no-hide-descendants"}
       >

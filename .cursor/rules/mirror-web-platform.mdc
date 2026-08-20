@@ -1,0 +1,42 @@
+---
+description: Mirror feature behavior from the web English Journal app
+alwaysApply: true
+---
+
+# Mirror the web platform
+
+This Expo/Android app is a mobile counterpart of the web English Journal app. **Feature behavior, UX flows, data model, and product rules must stay consistent with the web source.** Do not invent divergent product behavior.
+
+## Canonical source
+
+Web repo (sibling directory):
+
+`/home/dangtran/Development/Learning/learn-english-journaling`
+
+Primary code lives under:
+
+- `src/app/` — routes / screens
+- `src/components/` — UI
+- `src/hooks/` — client logic
+- `src/lib/` — API, Supabase, AI, helpers
+- `src/types/` — shared types
+- `supabase/` — schema and storage
+
+## Before implementing any feature or non-trivial fix
+
+1. Locate the matching web implementation (component, hook, lib, route, or schema).
+2. Read how it works end-to-end: user flow, state, persistence, edge cases, and copy.
+3. Port the same behavior to this app, adapting only for React Native / Expo constraints (navigation, gestures, native modules, layout).
+4. Prefer matching naming, domain concepts, and data shapes from the web app when practical.
+
+## Platform adaptations (allowed)
+
+- Use Expo / React Native APIs instead of web-only APIs (DOM, Next.js server actions, browser storage, etc.).
+- Adjust layout and chrome for mobile (safe areas, sheets, native keyboards) without changing the product rules.
+- If a web pattern cannot work on native, implement the closest equivalent and note the intentional difference briefly in the PR/commit description.
+
+## Do not
+
+- Skip reading the web source and “guess” how a feature should work.
+- Change product rules (save cadence, review flows, auth, preferences, entry structure) to differ from web without an explicit user request.
+- Treat this repo’s incomplete or older mobile code as more authoritative than the web implementation when they conflict—**web wins** unless the user says otherwise.

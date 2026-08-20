@@ -74,7 +74,7 @@ export function AnimatedDrawer({
 
   return (
     <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose}>
-      <View className="flex-1" pointerEvents="box-none">
+      <View className="flex-1" style={{ pointerEvents: "box-none" }}>
         <Pressable className="absolute inset-0" onPress={onClose}>
           <Animated.View
             className="absolute inset-0 bg-ink-950/25"
