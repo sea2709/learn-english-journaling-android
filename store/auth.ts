@@ -8,9 +8,10 @@ interface AuthState {
   user: User | null;
   loading: boolean;
   signInWithEmail: (email: string, password: string) => Promise<void>;
-  signUpWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string, name?: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signInWithFacebook: () => Promise<void>;
+  resetPasswordForEmail: (email: string) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   signOut: () => Promise<void>;
   setSession: (session: Session | null) => void;
@@ -30,8 +31,16 @@ export const useAuthStore = create<AuthState>((set) => ({
     if (error) throw error;
   },
 
-  signUpWithEmail: async (email, password) => {
-    const { error } = await supabase.auth.signUp({ email, password });
+  signUpWithEmail: async (email, password, name) => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name: name?.trim() || null,
+        },
+      },
+    });
     if (error) throw error;
   },
 
@@ -41,6 +50,21 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   signInWithFacebook: async () => {
     await signInWithOAuthProvider("facebook");
+  },
+
+  resetPasswordForEmail: async (email) => {
+    const webBase = (process.env.EXPO_PUBLIC_WEB_API_URL ?? "").replace(/\/$/, "");
+    if (!webBase) {
+      throw new Error(
+        "Password reset is not configured. Set EXPO_PUBLIC_WEB_API_URL to your web app URL."
+      );
+    }
+    // Complete the reset on the web app (same flow as desktop).
+    const redirectTo = `${webBase}/auth/callback?next=${encodeURIComponent("/auth/reset-password")}`;
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo,
+    });
+    if (error) throw error;
   },
 
   changePassword: async (currentPassword, newPassword) => {

@@ -74,11 +74,11 @@ export function SocialAuthButtons({
             {isLoading ? (
               <ActivityIndicator color={colors.ink800} />
             ) : (
-              <>
-                <Icon />
-                <Text className="text-sm font-medium text-ink-800">{label}</Text>
-              </>
+              <Icon />
             )}
+            <Text className="text-sm font-medium text-ink-800">
+              {isLoading ? "Redirecting…" : label}
+            </Text>
           </TouchableOpacity>
         );
       })}
