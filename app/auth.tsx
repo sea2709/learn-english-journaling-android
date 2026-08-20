@@ -7,12 +7,11 @@ import {
   KeyboardAvoidingView,
   Keyboard,
   Platform,
-  ActivityIndicator,
   ScrollView,
-  type NativeSyntheticEvent,
-  type TextInputFocusEventData,
+  type FocusEvent,
 } from "react-native";
 import { Redirect, useRootNavigationState } from "expo-router";
+import { PillButton } from "../components/common/ui";
 import { useAuthStore } from "../store/auth";
 import { colors } from "../lib/theme";
 
@@ -63,22 +62,19 @@ export default function AuthScreen() {
 
   if (session) return <Redirect href="/" />;
 
-  const heading =
-    step === "choose"
-      ? "English Journal"
-      : mode === "login"
-        ? "Welcome back."
-        : "Join English Journal.";
+  const heading = mode === "login" ? "Sign in" : "Create account";
   const subheading =
     step === "choose"
-      ? "Sign in or Sign up"
+      ? mode === "login"
+        ? "Continue your writing practice."
+        : "Save entries and sync across devices."
       : mode === "login"
         ? "Sign in to continue your writing practice."
         : "Create an account to save entries and sync across devices.";
 
   const keyboardOpen = keyboardHeight > 0;
 
-  function handleInputFocus(event: NativeSyntheticEvent<TextInputFocusEventData>) {
+  function handleInputFocus(event: FocusEvent) {
     const target = event.target;
     const scrollIntoView = () => {
       const responder = scrollRef.current as
@@ -103,6 +99,12 @@ export default function AuthScreen() {
     scrollFocusedInput.current = scrollIntoView;
     // Delay so the keyboard height / content inset can apply first.
     setTimeout(scrollIntoView, Platform.OS === "ios" ? 50 : 100);
+  }
+
+  function toggleMode() {
+    setMode((prev) => (prev === "login" ? "register" : "login"));
+    setError(null);
+    setMessage(null);
   }
 
   async function handleSubmit() {
@@ -139,6 +141,15 @@ export default function AuthScreen() {
     }
   }
 
+  const modeToggle = (
+    <Text className="mt-1 text-center text-sm text-ink-500">
+      {mode === "login" ? "No account? " : "Already have an account? "}
+      <Text className="font-semibold text-sage-700 underline" onPress={toggleMode}>
+        {mode === "login" ? "Create one" : "Sign in"}
+      </Text>
+    </Text>
+  );
+
   return (
     <KeyboardAvoidingView
       className="flex-1 bg-paper"
@@ -146,7 +157,7 @@ export default function AuthScreen() {
     >
       <ScrollView
         ref={scrollRef}
-        contentContainerClassName={`grow p-6 ${keyboardOpen ? "justify-start py-6" : "justify-center py-12"}`}
+        contentContainerClassName={`grow p-8 ${keyboardOpen ? "justify-start py-6" : "justify-center py-12"}`}
         contentContainerStyle={{
           // iOS: KeyboardAvoidingView + automaticallyAdjustKeyboardInsets handle inset.
           // Android: add keyboard height so fields can scroll above an overlapping keyboard.
@@ -159,93 +170,64 @@ export default function AuthScreen() {
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
       >
-        <View className="mb-7 items-center">
-          <Text className="text-center font-display text-[30px] text-ink-900">{heading}</Text>
-          {step === "choose" ? (
-            <>
-              <Text className="mt-4 text-center text-sm leading-[22px] text-ink-500">
-                English Journal helps you learn English through daily writing. Craft entries
-                paragraph by paragraph, get AI feedback on grammar, tone, and word choice, then
-                save your progress across devices.
-              </Text>
-              <Text className="mt-6 text-center font-display text-xl text-ink-900">
-                {subheading}
-              </Text>
-            </>
-          ) : (
-            <Text className="mt-2 text-center text-sm text-ink-500">{subheading}</Text>
-          )}
+        <View className="mb-8 items-center">
+          <Text className="mb-3 font-display text-base text-pen">English Journal</Text>
+          <Text className="mb-3 text-center font-display text-[26px] text-ink-900">{heading}</Text>
+          <Text className="text-center text-sm leading-[22px] text-ink-500">{subheading}</Text>
         </View>
 
         {step === "choose" ? (
-          <View className="gap-4">
-            <TouchableOpacity
-              className="items-center rounded-full border border-ink-200 bg-white py-3"
+          <View className="w-full gap-4">
+            <PillButton
+              label="Continue with Google"
               onPress={handleGoogle}
               disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color={colors.ink800} />
-              ) : (
-                <Text className="text-sm font-medium text-ink-800">Continue with Google</Text>
-              )}
-            </TouchableOpacity>
+              loading={loading}
+              fullWidth
+            />
 
             <View className="flex-row items-center gap-3">
-              <View className="h-px flex-1 bg-ink-200" />
+              <View className="h-px flex-1 bg-paper-line" />
               <Text className="text-[11px] font-semibold tracking-wide text-ink-400">OR</Text>
-              <View className="h-px flex-1 bg-ink-200" />
+              <View className="h-px flex-1 bg-paper-line" />
             </View>
 
-            <TouchableOpacity
-              className="items-center rounded-full border border-ink-200 bg-white py-3"
+            <PillButton
+              label={mode === "login" ? "Sign in with email" : "Sign up with email"}
               onPress={() => {
                 setError(null);
+                setMessage(null);
                 setStep("email");
               }}
-            >
-              <Text className="text-sm font-medium text-ink-800">
-                Sign {mode === "login" ? "in" : "up"} with email
-              </Text>
-            </TouchableOpacity>
+              disabled={loading}
+              fullWidth
+            />
 
-            <Text className="mt-1 text-center text-sm text-ink-500">
-              {mode === "login" ? "No account? " : "Already have an account? "}
-              <Text
-                className="font-semibold text-sage-700 underline"
-                onPress={() => setMode(mode === "login" ? "register" : "login")}
-              >
-                {mode === "login" ? "Create one" : "Sign in"}
-              </Text>
-            </Text>
+            {error ? (
+              <View className="rounded-lg bg-coral-200/60 px-3 py-2.5">
+                <Text className="text-[13px] text-coral-800">{error}</Text>
+              </View>
+            ) : null}
+
+            {modeToggle}
           </View>
         ) : (
-          <View
-            className="rounded-2xl border border-ink-200 bg-white p-5"
-            style={{
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 1 },
-              shadowOpacity: 0.08,
-              shadowRadius: 2,
-              elevation: 1,
-            }}
-          >
+          <View className="w-full">
             <TouchableOpacity
               onPress={() => {
                 setError(null);
+                setMessage(null);
                 setStep("choose");
               }}
-              className="mb-4"
+              className="mb-4 self-start"
+              hitSlop={10}
             >
               <Text className="text-sm text-ink-500">← Back</Text>
             </TouchableOpacity>
 
-            <Text className="mb-1.5 mt-2 text-[11px] font-bold tracking-wide text-ink-500">
-              EMAIL
-            </Text>
+            <Text className="mb-1.5 text-[11px] font-bold tracking-wide text-ink-500">EMAIL</Text>
             <TextInput
-              className="mb-1 rounded-[10px] border border-ink-200 px-3 py-2.5 text-sm text-ink-900"
-              style={{ backgroundColor: "rgba(247, 246, 243, 0.5)" }}
+              className="mb-1 rounded-lg border border-paper-line bg-white/80 px-3 py-2.5 text-sm text-ink-900"
               value={email}
               onChangeText={setEmail}
               onFocus={handleInputFocus}
@@ -253,24 +235,28 @@ export default function AuthScreen() {
               autoCapitalize="none"
               autoCorrect={false}
               editable={!loading}
+              placeholder="you@example.com"
+              placeholderTextColor={colors.ink400}
             />
 
-            <Text className="mb-1.5 mt-2 text-[11px] font-bold tracking-wide text-ink-500">
+            <Text className="mb-1.5 mt-3 text-[11px] font-bold tracking-wide text-ink-500">
               PASSWORD
             </Text>
             <View className="relative">
               <TextInput
-                className="mb-1 rounded-[10px] border border-ink-200 py-2.5 pl-3 pr-14 text-sm text-ink-900"
-                style={{ backgroundColor: "rgba(247, 246, 243, 0.5)" }}
+                className="mb-1 rounded-lg border border-paper-line bg-white/80 py-2.5 pl-3 pr-14 text-sm text-ink-900"
                 value={password}
                 onChangeText={setPassword}
                 onFocus={handleInputFocus}
                 secureTextEntry={!showPassword}
                 editable={!loading}
+                placeholder="Your password"
+                placeholderTextColor={colors.ink400}
               />
               <TouchableOpacity
                 onPress={() => setShowPassword((v) => !v)}
                 className="absolute right-3 top-3"
+                hitSlop={8}
               >
                 <Text className="text-xs font-semibold text-sage-700">
                   {showPassword ? "Hide" : "Show"}
@@ -278,31 +264,28 @@ export default function AuthScreen() {
               </TouchableOpacity>
             </View>
 
-            {error && (
-              <View className="mt-3 rounded-[10px] border border-coral-200 bg-coral-50 p-2.5">
+            {error ? (
+              <View className="mt-4 rounded-lg bg-coral-200/60 px-3 py-2.5">
                 <Text className="text-[13px] text-coral-800">{error}</Text>
               </View>
-            )}
-            {message && (
-              <View className="mt-3 rounded-[10px] border border-sage-200 bg-sage-50 p-2.5">
-                <Text className="text-[13px] text-sage-800">{message}</Text>
+            ) : null}
+            {message ? (
+              <View className="mt-4 rounded-lg bg-sage-100/60 px-4 py-3.5">
+                <Text className="text-sm text-sage-800">{message}</Text>
               </View>
-            )}
+            ) : null}
 
-            <TouchableOpacity
-              className="mt-4 items-center rounded-full bg-ink-900 py-3"
-              style={loading ? { opacity: 0.6 } : undefined}
-              onPress={handleSubmit}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color={colors.white} />
-              ) : (
-                <Text className="text-sm font-semibold text-white">
-                  {mode === "login" ? "Sign in" : "Create account"}
-                </Text>
-              )}
-            </TouchableOpacity>
+            <View className="mt-4 gap-4">
+              <PillButton
+                label={mode === "login" ? "Sign in" : "Create account"}
+                onPress={handleSubmit}
+                disabled={loading}
+                loading={loading}
+                fullWidth
+                variant="primary"
+              />
+              {modeToggle}
+            </View>
           </View>
         )}
       </ScrollView>
