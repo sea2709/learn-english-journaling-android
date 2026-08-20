@@ -358,7 +358,6 @@ export default function JournalHomeScreen() {
                 onAnalyze={() => handleAnalyze(block.id)}
                 onSuggestionUpdate={(s) => handleSuggestionUpdate(block.id, s)}
                 onDiscussionChange={(msgs) => handleDiscussionChange(block.id, msgs)}
-                onDelete={() => handleDeleteBlock(block.id)}
                 onSplit={(cursorPos) => handleSplit(block.id, cursorPos)}
                 onRemoveEmpty={() => handleRemoveEmpty(block.id)}
                 onFocusBlock={() => setActiveBlockId(block.id)}

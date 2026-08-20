@@ -268,7 +268,6 @@ export default function EntryEditorScreen() {
                 onDiscussionChange={(msgs: JournalParagraph["discussion"]) =>
                   updateBlock(entry.id, block.id, { discussion: msgs }, userId)
                 }
-                onDelete={() => handleDeleteBlock(block.id)}
                 onSplit={(cursorPos) => handleSplit(block.id, cursorPos)}
                 onRemoveEmpty={() => handleRemoveEmpty(block.id)}
                 onFocusBlock={() => setActiveBlockId(block.id)}
