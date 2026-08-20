@@ -4,6 +4,7 @@ import { secureStorage } from "../lib/secure-storage";
 import type { AiMode } from "../lib/types";
 
 const STORAGE_KEY = "aiMode";
+const DEFAULT_MODE: AiMode = "api";
 
 function isWeb(): boolean {
   return Platform.OS === "web";
@@ -34,10 +35,12 @@ export const useAiModeStore = create<AiModeState>((set) => ({
         set({ mode: raw, chosen: true, loaded: true });
         return;
       }
-      set({ mode: null, chosen: false, loaded: true });
+      // Default to cloud AI; users change this in Account → AI review
+      await secureStorage.setItem(STORAGE_KEY, DEFAULT_MODE);
+      set({ mode: DEFAULT_MODE, chosen: true, loaded: true });
     } catch (error) {
       console.error("Failed to load AI mode", error);
-      set({ mode: null, chosen: false, loaded: true });
+      set({ mode: DEFAULT_MODE, chosen: true, loaded: true });
     }
   },
 

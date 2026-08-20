@@ -10,7 +10,7 @@ import { colors } from "../lib/theme";
 export default function IndexScreen() {
   const { session, loading } = useAuthStore();
   const { downloaded } = useModelStore();
-  const { chosen, mode, loaded: aiModeLoaded } = useAiModeStore();
+  const { mode, loaded: aiModeLoaded } = useAiModeStore();
   const rootNavigationState = useRootNavigationState();
   const [dbReady, setDbReady] = useState(false);
 
@@ -38,10 +38,6 @@ export default function IndexScreen() {
 
   if (!session) {
     return <Redirect href="/auth" />;
-  }
-
-  if (Platform.OS !== "web" && !chosen) {
-    return <Redirect href="/ai-setup" />;
   }
 
   if (Platform.OS !== "web" && mode === "local" && !downloaded) {

@@ -61,7 +61,7 @@ export function AiModeDrawer({ visible, onClose }: AiModeDrawerProps) {
           <Text className="mb-1 text-sm leading-[21px] text-ink-600">
             {Platform.OS === "web"
               ? "Web always uses the Cloud AI API. On-device model download is only available in the mobile app."
-              : "Choose how paragraph review and coaching chats run on this device."}
+              : "Cloud AI is the default. Switch to an on-device model if you prefer private, offline review."}
           </Text>
 
           <OptionCard

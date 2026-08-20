@@ -81,7 +81,6 @@ export default function RootLayout() {
       >
         <Stack.Screen name="index" />
         <Stack.Screen name="auth" />
-        <Stack.Screen name="ai-setup" />
         <Stack.Screen name="model-download" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="entries/[id]/index" options={{ headerShown: false }} />
