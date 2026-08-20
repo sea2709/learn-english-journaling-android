@@ -4,6 +4,7 @@ import {
   Dimensions,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   Text,
   TextInput,
@@ -14,6 +15,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, cx } from "../../lib/theme";
 import { AnimatedDrawer, AnimatedMenu } from "./AnimatedShell";
 import { AppFeedbackIcon, HamburgerIcon, KeyIcon, SettingsIcon, SignOutIcon } from "./icons";
+
+/** Prefer the real viewport width on web so Modal anchors match CSS absolute menus. */
+function getViewportWidth() {
+  if (Platform.OS === "web" && typeof window !== "undefined") {
+    return window.innerWidth;
+  }
+  return Dimensions.get("window").width;
+}
 
 type TopBarProps = {
   onEntries: () => void;
@@ -57,7 +66,7 @@ export function TopBar({
 
   function openMenu() {
     hamburgerRef.current?.measureInWindow((x, y, width, height) => {
-      const screenWidth = Dimensions.get("window").width;
+      const screenWidth = getViewportWidth();
       setAnchor({
         top: y + height + 6,
         right: Math.max(8, screenWidth - (x + width)),
@@ -103,47 +112,49 @@ export function TopBar({
       <AnimatedMenu visible={menuOpen} onClose={closeMenu} anchor={anchor}>
         <MenuItem
           label="New entry"
-          icon={<Text className="w-4 text-center text-[13px] font-semibold leading-4 text-pen">+</Text>}
+          icon={<Text className="w-3.5 text-center text-[13px] font-semibold leading-none text-pen">+</Text>}
           onPress={() => run(onNewEntry)}
         />
 
-        <Text className="mb-0.5 mt-2 px-3.5 text-[11px] font-bold uppercase tracking-wide text-ink-400">
-          Account
-        </Text>
-        {email ? (
-          <Text className="px-3.5 pb-2 text-xs text-ink-500" numberOfLines={1}>
-            {email}
+        {/* Account group mirrors web `.top-actions-dropdown-group` */}
+        <View className="my-1 border-y border-paper-line/70 py-1">
+          <Text className="px-3 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-ink-500">
+            Account
           </Text>
-        ) : null}
-        <MenuItem
-          label="Review focus"
-          icon={<SettingsIcon />}
-          onPress={() => run(onReviewFocus)}
-        />
-        <MenuItem
-          label="AI review"
-          icon={<Text className="w-4 text-center text-[13px] font-semibold leading-4 text-pen">◎</Text>}
-          onPress={() => run(onAiMode)}
-        />
-        {canChangePassword && onChangePassword ? (
+          {email ? (
+            <Text className="mb-1 px-3 pb-1.5 pt-2 text-xs leading-[1.35] text-ink-500" numberOfLines={1}>
+              {email}
+            </Text>
+          ) : null}
           <MenuItem
-            label="Change password"
-            icon={<KeyIcon />}
-            onPress={() => run(onChangePassword)}
+            label="Review focus"
+            icon={<SettingsIcon />}
+            onPress={() => run(onReviewFocus)}
           />
-        ) : null}
-        <MenuItem
-          label="App feedback"
-          icon={<AppFeedbackIcon />}
-          onPress={() => run(onAppFeedback)}
-        />
-        <View className="mx-2.5 my-1 h-px bg-paper-line" />
-        <MenuItem label="Sign out" icon={<SignOutIcon />} onPress={() => run(onSignOut)} />
+          <MenuItem
+            label="AI review"
+            icon={<Text className="w-3.5 text-center text-[13px] font-semibold leading-none text-pen">◎</Text>}
+            onPress={() => run(onAiMode)}
+          />
+          {canChangePassword && onChangePassword ? (
+            <MenuItem
+              label="Change password"
+              icon={<KeyIcon />}
+              onPress={() => run(onChangePassword)}
+            />
+          ) : null}
+          <MenuItem
+            label="App feedback"
+            icon={<AppFeedbackIcon />}
+            onPress={() => run(onAppFeedback)}
+          />
+          <View className="mx-2 my-1.5 h-px bg-paper-line/70" />
+          <MenuItem label="Sign out" icon={<SignOutIcon />} onPress={() => run(onSignOut)} />
+        </View>
 
-        <View className="mx-2.5 my-1 h-px bg-paper-line" />
         <MenuItem
           label="Review"
-          icon={<Text className="w-4 text-center text-[13px] font-semibold leading-4 text-pen">✎</Text>}
+          icon={<Text className="w-3.5 text-center text-[13px] font-semibold leading-none text-pen">✎</Text>}
           disabled={reviewDisabled}
           onPress={() => {
             if (!reviewDisabled) run(onReview);
@@ -165,19 +176,24 @@ function MenuItem({
   onPress: () => void;
   disabled?: boolean;
 }) {
+  const hoverWash = { backgroundColor: "rgba(232, 224, 208, 0.85)" };
+
   return (
-    <TouchableOpacity
+    <Pressable
       className={cx(
-        "flex-row items-center gap-2.5 px-3.5 py-3",
+        "flex-row items-center gap-2.5 rounded-lg px-3 py-2.5",
+        !disabled && "hover:bg-[rgba(232,224,208,0.85)]",
         disabled && "opacity-40"
       )}
       onPress={onPress}
       disabled={disabled}
-      activeOpacity={0.7}
+      style={({ pressed }) => (!disabled && pressed ? hoverWash : undefined)}
     >
-      <View className="w-4 items-center justify-center">{icon}</View>
-      <Text className="text-sm font-medium text-ink-800">{label}</Text>
-    </TouchableOpacity>
+      <View className="w-3.5 shrink-0 items-center justify-center">{icon}</View>
+      <Text className="text-sm text-ink-800" numberOfLines={1}>
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 

@@ -1,5 +1,14 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Modal, Pressable, View, Dimensions, type StyleProp, type ViewStyle } from "react-native";
+import {
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  View,
+  Dimensions,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
 import Animated, {
   Easing,
   runOnJS,
@@ -8,7 +17,7 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from "react-native-reanimated";
-import { cx } from "../../lib/theme";
+import { colors, cx } from "../../lib/theme";
 
 /** Matches web Tailwind animations in tailwind.config.ts */
 export const motion = {
@@ -190,18 +199,52 @@ export function AnimatedMenu({
 
   return (
     <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose}>
-      <Pressable className="flex-1" onPress={onClose}>
+      <View className="flex-1" style={{ pointerEvents: "box-none" }}>
+        <Pressable
+          accessibilityLabel="Dismiss menu"
+          onPress={onClose}
+          style={StyleSheet.absoluteFill}
+        />
         <Animated.View
-          className="absolute min-w-[184px] max-w-[300px] rounded-xl border border-paper-line/90 bg-paper py-1.5 shadow-lg"
           style={[
-            { top: cachedAnchor.top, right: cachedAnchor.right, elevation: 8 },
+            menuCardStyles.card,
+            { top: cachedAnchor.top, right: cachedAnchor.right },
             cardAnimStyle,
             cardStyle,
           ]}
         >
-          <Pressable onPress={(e) => e.stopPropagation()}>{children}</Pressable>
+          {children}
         </Animated.View>
-      </Pressable>
+      </View>
     </Modal>
   );
 }
+
+/** Mirrors web `.top-actions-dropdown` shell (globals.css). */
+const menuCardShadow = Platform.select<ViewStyle>({
+  web: {
+    boxShadow: "0 8px 24px rgba(39, 33, 25, 0.12)",
+  } as ViewStyle,
+  default: {
+    shadowColor: colors.ink950,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+});
+
+const menuCardStyles = StyleSheet.create({
+  card: {
+    position: "absolute",
+    zIndex: 50,
+    minWidth: 184,
+    maxWidth: 300,
+    padding: 6,
+    borderWidth: 1,
+    borderColor: "rgba(212, 201, 184, 0.9)",
+    borderRadius: 12,
+    backgroundColor: colors.paper,
+    ...menuCardShadow,
+  },
+});
