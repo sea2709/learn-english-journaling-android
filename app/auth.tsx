@@ -13,6 +13,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Redirect, useRootNavigationState } from "expo-router";
 import { PillButton } from "../components/common/ui";
+import { SocialAuthButtons } from "../components/SocialAuthButtons";
+import type { SocialAuthProvider } from "../lib/oauth";
 import { useAuthStore } from "../store/auth";
 import { colors } from "../lib/theme";
 
@@ -22,7 +24,13 @@ type Step = "choose" | "email";
 const KEYBOARD_BOTTOM_CUSHION = 24;
 
 export default function AuthScreen() {
-  const { session, signInWithEmail, signUpWithEmail, signInWithGoogle } = useAuthStore();
+  const {
+    session,
+    signInWithEmail,
+    signUpWithEmail,
+    signInWithGoogle,
+    signInWithFacebook,
+  } = useAuthStore();
   const rootNavigationState = useRootNavigationState();
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
@@ -33,7 +41,7 @@ export default function AuthScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
+  const [oauthProvider, setOauthProvider] = useState<SocialAuthProvider | null>(null);
   const [emailLoading, setEmailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -76,6 +84,7 @@ export default function AuthScreen() {
         : "Create an account to save entries and sync across devices.";
 
   const keyboardOpen = keyboardHeight > 0;
+  const oauthBusy = oauthProvider !== null;
 
   function handleInputFocus(event: FocusEvent) {
     const target = event.target;
@@ -132,15 +141,19 @@ export default function AuthScreen() {
     }
   }
 
-  async function handleGoogle() {
-    setGoogleLoading(true);
+  async function handleOAuth(provider: SocialAuthProvider) {
+    setOauthProvider(provider);
     setError(null);
     try {
-      await signInWithGoogle();
+      if (provider === "google") {
+        await signInWithGoogle();
+      } else {
+        await signInWithFacebook();
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Sign in was cancelled or failed.");
     } finally {
-      setGoogleLoading(false);
+      setOauthProvider(null);
     }
   }
 
@@ -182,12 +195,10 @@ export default function AuthScreen() {
 
         {step === "choose" ? (
           <View className="w-full gap-4">
-            <PillButton
-              label="Continue with Google"
-              onPress={handleGoogle}
-              disabled={googleLoading}
-              loading={googleLoading}
-              fullWidth
+            <SocialAuthButtons
+              loadingProvider={oauthProvider}
+              disabled={emailLoading}
+              onPress={handleOAuth}
             />
 
             <View className="flex-row items-center gap-3">
@@ -203,6 +214,7 @@ export default function AuthScreen() {
                 setMessage(null);
                 setStep("email");
               }}
+              disabled={oauthBusy}
               fullWidth
             />
 

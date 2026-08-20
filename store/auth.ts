@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
+import { signInWithOAuthProvider } from "../lib/oauth";
 
 interface AuthState {
   session: Session | null;
@@ -9,6 +10,7 @@ interface AuthState {
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  signInWithFacebook: () => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   signOut: () => Promise<void>;
   setSession: (session: Session | null) => void;
@@ -34,13 +36,11 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   signInWithGoogle: async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: "learnenglishjournaling://auth/callback",
-      },
-    });
-    if (error) throw error;
+    await signInWithOAuthProvider("google");
+  },
+
+  signInWithFacebook: async () => {
+    await signInWithOAuthProvider("facebook");
   },
 
   changePassword: async (currentPassword, newPassword) => {
