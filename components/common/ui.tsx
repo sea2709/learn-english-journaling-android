@@ -108,9 +108,10 @@ export function PillButton({
         (disabled || loading) && "opacity-[0.55]"
       )}
     >
-      {loading ? (
-        <ActivityIndicator color={isPrimary ? colors.white : colors.pen} size="small" />
-      ) : (
+      <View className="flex-row items-center justify-center gap-2">
+        {loading ? (
+          <ActivityIndicator color={isPrimary ? colors.white : colors.pen} size="small" />
+        ) : null}
         <Text
           className={cx(
             "text-[13px] font-medium text-ink-800",
@@ -121,7 +122,7 @@ export function PillButton({
         >
           {label}
         </Text>
-      )}
+      </View>
     </TouchableOpacity>
   );
 }

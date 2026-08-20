@@ -293,7 +293,15 @@ export default function AuthScreen() {
 
             <View className="mt-4 gap-4">
               <PillButton
-                label={mode === "login" ? "Sign in" : "Create account"}
+                label={
+                  emailLoading
+                    ? mode === "login"
+                      ? "Signing in…"
+                      : "Creating account…"
+                    : mode === "login"
+                      ? "Sign in"
+                      : "Create account"
+                }
                 onPress={handleSubmit}
                 disabled={emailLoading}
                 loading={emailLoading}
