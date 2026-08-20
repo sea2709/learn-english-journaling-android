@@ -101,27 +101,35 @@ export function PillButton({
       activeOpacity={0.75}
       className={cx(
         "min-h-10 items-center justify-center rounded-full border px-3.5 py-2",
-        "border-paper-line/80 bg-white/55",
         fullWidth && "w-full",
-        isPrimary && "border-ink-900 bg-ink-900",
-        isDanger && "border-coral-200 bg-coral-50",
+        // NativeWind does not resolve conflicting utilities — pick one surface.
+        isPrimary
+          ? "border-ink-900 bg-ink-900"
+          : isDanger
+            ? "border-coral-200 bg-coral-50"
+            : "border-ink-200 bg-white",
         (disabled || loading) && "opacity-[0.55]"
       )}
     >
-      {loading ? (
-        <ActivityIndicator color={isPrimary ? colors.white : colors.pen} size="small" />
-      ) : (
+      <View className="flex-row items-center justify-center gap-2">
+        {loading ? (
+          <ActivityIndicator color={isPrimary ? colors.white : colors.pen} size="small" />
+        ) : null}
         <Text
           className={cx(
-            "text-[13px] font-medium text-ink-800",
-            penAccent && "text-pen",
-            isPrimary && "font-semibold text-white",
-            isDanger && "font-semibold text-coral-700"
+            "text-[13px] font-medium",
+            isPrimary
+              ? "font-semibold text-white"
+              : isDanger
+                ? "font-semibold text-coral-700"
+                : penAccent
+                  ? "text-pen"
+                  : "text-ink-800"
           )}
         >
           {label}
         </Text>
-      )}
+      </View>
     </TouchableOpacity>
   );
 }
