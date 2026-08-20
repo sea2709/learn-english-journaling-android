@@ -220,7 +220,7 @@ export default function AuthScreen() {
     <Text className="text-center text-sm text-ink-500">
       {mode === "login" ? "No account? " : "Already have an account? "}
       <Text
-        className="font-medium text-sage-700 underline"
+        className="font-medium text-sage-700"
         onPress={() => switchMode(mode === "login" ? "register" : "login")}
       >
         {mode === "login" ? "Create one" : "Sign in"}
@@ -233,7 +233,7 @@ export default function AuthScreen() {
       By continuing, you agree to our{" "}
       {WEB_BASE_URL ? (
         <Text
-          className="font-medium text-ink-500 underline"
+          className="font-medium text-ink-500"
           onPress={() => openWebPath("/terms")}
         >
           Terms of Service
@@ -244,7 +244,7 @@ export default function AuthScreen() {
       and acknowledge our{" "}
       {WEB_BASE_URL ? (
         <Text
-          className="font-medium text-ink-500 underline"
+          className="font-medium text-ink-500"
           onPress={() => openWebPath("/privacy")}
         >
           Privacy Policy
@@ -444,7 +444,7 @@ export default function AuthScreen() {
                         hitSlop={8}
                         disabled={emailLoading}
                       >
-                        <Text className="text-xs font-medium text-sage-700 underline">
+                        <Text className="text-xs font-medium text-sage-700">
                           Forgot password?
                         </Text>
                       </TouchableOpacity>
