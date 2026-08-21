@@ -5,12 +5,17 @@ import { DEFAULT_ANALYSIS_PREFERENCES } from "./analysis-preferences";
 let db: SQLite.SQLiteDatabase | null = null;
 let initPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
-/** Serialize writes so concurrent withTransaction* calls cannot fight over BEGIN/COMMIT. */
-let writeChain: Promise<unknown> = Promise.resolve();
+/**
+ * Serialize every SQLite call on the shared connection.
+ * Overlapping prepare/run/finalize races expo-sqlite SharedObjects on Android
+ * (`NativeStatement.runAsync` then fails with an invalid native id).
+ * Do not nest enqueueDb — helpers used from queued functions must call SQLite directly.
+ */
+let dbChain: Promise<unknown> = Promise.resolve();
 
-function enqueueWrite<T>(fn: () => Promise<T>): Promise<T> {
-  const run = writeChain.then(fn, fn);
-  writeChain = run.then(
+function enqueueDb<T>(fn: () => Promise<T>): Promise<T> {
+  const run = dbChain.then(fn, fn);
+  dbChain = run.then(
     () => undefined,
     () => undefined
   );
@@ -94,70 +99,106 @@ export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
 }
 
 export async function closeDatabase(): Promise<void> {
-  if (db) {
-    await db.closeAsync();
-    db = null;
-    initPromise = null;
-  }
+  return enqueueDb(async () => {
+    if (db) {
+      await db.closeAsync();
+      db = null;
+      initPromise = null;
+    }
+  });
 }
 
 // ── Entry CRUD ──────────────────────────────────────────────────────────────
 
 export async function getAllEntries(userId: string): Promise<StoredJournalEntry[]> {
-  const database = await initDatabase();
-  const rows = await database.getAllAsync<{
-    id: string;
-    title: string;
-    date: string;
-    status: string;
-    sync_status: string;
-    updated_at: string;
-  }>(
-    `SELECT id, title, date, status, sync_status, updated_at
-     FROM journal_entries
-     WHERE user_id = ? AND sync_status != 'pending_delete'
-     ORDER BY date DESC, updated_at DESC`,
-    [userId]
-  );
+  return enqueueDb(async () => {
+    const database = await initDatabase();
+    const rows = await database.getAllAsync<{
+      id: string;
+      title: string;
+      date: string;
+      status: string;
+      sync_status: string;
+      updated_at: string;
+    }>(
+      `SELECT id, title, date, status, sync_status, updated_at
+       FROM journal_entries
+       WHERE user_id = ? AND sync_status != 'pending_delete'
+       ORDER BY date DESC, updated_at DESC`,
+      [userId]
+    );
 
-  const entries: StoredJournalEntry[] = [];
-  for (const row of rows) {
-    const blocks = await getBlocksForEntry(row.id);
-    entries.push({
-      id: row.id,
-      title: row.title,
-      date: row.date,
-      status: row.status,
-      syncStatus: row.sync_status as SyncStatus,
-      updatedAt: row.updated_at,
-      blocks,
-    });
-  }
-  return entries;
+    const entries: StoredJournalEntry[] = [];
+    for (const row of rows) {
+      const blocks = await getBlocksForEntry(row.id);
+      entries.push({
+        id: row.id,
+        title: row.title,
+        date: row.date,
+        status: row.status,
+        syncStatus: row.sync_status as SyncStatus,
+        updatedAt: row.updated_at,
+        blocks,
+      });
+    }
+    return entries;
+  });
 }
 
 /** Includes pending_delete tombstones for the sync engine. */
 export async function getEntriesForSync(userId: string): Promise<StoredJournalEntry[]> {
-  const database = await initDatabase();
-  const rows = await database.getAllAsync<{
-    id: string;
-    title: string;
-    date: string;
-    status: string;
-    sync_status: string;
-    updated_at: string;
-  }>(
-    `SELECT id, title, date, status, sync_status, updated_at
-     FROM journal_entries
-     WHERE user_id = ?
-     ORDER BY date DESC, updated_at DESC`,
-    [userId]
-  );
+  return enqueueDb(async () => {
+    const database = await initDatabase();
+    const rows = await database.getAllAsync<{
+      id: string;
+      title: string;
+      date: string;
+      status: string;
+      sync_status: string;
+      updated_at: string;
+    }>(
+      `SELECT id, title, date, status, sync_status, updated_at
+       FROM journal_entries
+       WHERE user_id = ?
+       ORDER BY date DESC, updated_at DESC`,
+      [userId]
+    );
 
-  const entries: StoredJournalEntry[] = [];
-  for (const row of rows) {
-    const blocks = await getBlocksForEntry(row.id);
-    entries.push({
+    const entries: StoredJournalEntry[] = [];
+    for (const row of rows) {
+      const blocks = await getBlocksForEntry(row.id);
+      entries.push({
+        id: row.id,
+        title: row.title,
+        date: row.date,
+        status: row.status,
+        syncStatus: row.sync_status as SyncStatus,
+        updatedAt: row.updated_at,
+        blocks,
+      });
+    }
+    return entries;
+  });
+}
+
+export async function getEntry(id: string): Promise<StoredJournalEntry | null> {
+  return enqueueDb(async () => {
+    const database = await initDatabase();
+    const row = await database.getFirstAsync<{
+      id: string;
+      title: string;
+      date: string;
+      status: string;
+      sync_status: string;
+      updated_at: string;
+    }>(
+      `SELECT id, title, date, status, sync_status, updated_at FROM journal_entries WHERE id = ?`,
+      [id]
+    );
+    if (!row) return null;
+
+    const blocks = await getBlocksForEntry(id);
+    return {
       id: row.id,
       title: row.title,
       date: row.date,
@@ -165,36 +206,8 @@ export async function getEntriesForSync(userId: string): Promise<StoredJournalEn
       syncStatus: row.sync_status as SyncStatus,
       updatedAt: row.updated_at,
       blocks,
-    });
-  }
-  return entries;
-}
-
-export async function getEntry(id: string): Promise<StoredJournalEntry | null> {
-  const database = await initDatabase();
-  const row = await database.getFirstAsync<{
-    id: string;
-    title: string;
-    date: string;
-    status: string;
-    sync_status: string;
-    updated_at: string;
-  }>(
-    `SELECT id, title, date, status, sync_status, updated_at FROM journal_entries WHERE id = ?`,
-    [id]
-  );
-  if (!row) return null;
-
-  const blocks = await getBlocksForEntry(id);
-  return {
-    id: row.id,
-    title: row.title,
-    date: row.date,
-    status: row.status,
-    syncStatus: row.sync_status as SyncStatus,
-    updatedAt: row.updated_at,
-    blocks,
-  };
+    };
+  });
 }
 
 async function getBlocksForEntry(entryId: string) {
@@ -229,14 +242,13 @@ async function getBlocksForEntry(entryId: string) {
 }
 
 export async function saveEntry(entry: StoredJournalEntry, userId: string): Promise<void> {
-  return enqueueWrite(async () => {
+  return enqueueDb(async () => {
     const database = await initDatabase();
     const now = new Date().toISOString();
     const updatedAt = entry.updatedAt || now;
 
-    // Exclusive txn isolates queries on `txn` so overlapping app writes cannot share BEGIN/COMMIT.
-    await database.withExclusiveTransactionAsync(async (txn) => {
-      await txn.runAsync(
+    await database.withTransactionAsync(async () => {
+      await database.runAsync(
         `INSERT INTO journal_entries
          (id, user_id, title, date, status, sync_status, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -259,12 +271,12 @@ export async function saveEntry(entry: StoredJournalEntry, userId: string): Prom
         ]
       );
 
-      await txn.runAsync(`DELETE FROM journal_paragraphs WHERE entry_id = ?`, [entry.id]);
+      await database.runAsync(`DELETE FROM journal_paragraphs WHERE entry_id = ?`, [entry.id]);
 
       for (let i = 0; i < entry.blocks.length; i++) {
         const block = entry.blocks[i];
         if (block.type === "text") {
-          await txn.runAsync(
+          await database.runAsync(
             `INSERT INTO journal_paragraphs
              (id, entry_id, position, type, text, analysis_json, analyzed_text, discussion_json, sync_status, updated_at)
              VALUES (?, ?, ?, 'text', ?, ?, ?, ?, 'pending_create', ?)`,
@@ -280,7 +292,7 @@ export async function saveEntry(entry: StoredJournalEntry, userId: string): Prom
             ]
           );
         } else {
-          await txn.runAsync(
+          await database.runAsync(
             `INSERT INTO journal_paragraphs
              (id, entry_id, position, type, image_path, sync_status, updated_at)
              VALUES (?, ?, ?, 'image', ?, 'pending_create', ?)`,
@@ -293,7 +305,7 @@ export async function saveEntry(entry: StoredJournalEntry, userId: string): Prom
 }
 
 export async function markEntryDeleted(entryId: string): Promise<void> {
-  return enqueueWrite(async () => {
+  return enqueueDb(async () => {
     const database = await initDatabase();
     await database.runAsync(
       `UPDATE journal_entries SET sync_status = 'pending_delete', updated_at = ? WHERE id = ?`,
@@ -303,7 +315,7 @@ export async function markEntryDeleted(entryId: string): Promise<void> {
 }
 
 export async function deleteEntryLocal(entryId: string): Promise<void> {
-  return enqueueWrite(async () => {
+  return enqueueDb(async () => {
     const database = await initDatabase();
     await database.runAsync(`DELETE FROM journal_entries WHERE id = ?`, [entryId]);
   });
@@ -321,35 +333,37 @@ export async function getPreferencesRecord(userId: string): Promise<{
   syncStatus: SyncStatus;
   updatedAt: string;
 } | null> {
-  const database = await initDatabase();
-  const row = await database.getFirstAsync<{
-    focus_areas_json: string;
-    custom_note: string | null;
-    sync_status: string;
-    updated_at: string;
-  }>(
-    `SELECT focus_areas_json, custom_note, sync_status, updated_at
-     FROM user_preferences WHERE user_id = ?`,
-    [userId]
-  );
+  return enqueueDb(async () => {
+    const database = await initDatabase();
+    const row = await database.getFirstAsync<{
+      focus_areas_json: string;
+      custom_note: string | null;
+      sync_status: string;
+      updated_at: string;
+    }>(
+      `SELECT focus_areas_json, custom_note, sync_status, updated_at
+       FROM user_preferences WHERE user_id = ?`,
+      [userId]
+    );
 
-  if (!row) return null;
+    if (!row) return null;
 
-  return {
-    preferences: {
-      focusAreas: JSON.parse(row.focus_areas_json),
-      customNote: row.custom_note ?? undefined,
-    },
-    syncStatus: row.sync_status as SyncStatus,
-    updatedAt: row.updated_at,
-  };
+    return {
+      preferences: {
+        focusAreas: JSON.parse(row.focus_areas_json),
+        customNote: row.custom_note ?? undefined,
+      },
+      syncStatus: row.sync_status as SyncStatus,
+      updatedAt: row.updated_at,
+    };
+  });
 }
 
 export async function savePreferences(
   userId: string,
   prefs: AnalysisPreferences
 ): Promise<void> {
-  return enqueueWrite(async () => {
+  return enqueueDb(async () => {
     const database = await initDatabase();
     const now = new Date().toISOString();
     await database.runAsync(
@@ -366,7 +380,7 @@ export async function upsertPreferencesSynced(
   prefs: AnalysisPreferences,
   updatedAt: string
 ): Promise<void> {
-  return enqueueWrite(async () => {
+  return enqueueDb(async () => {
     const database = await initDatabase();
     await database.runAsync(
       `INSERT OR REPLACE INTO user_preferences
@@ -378,7 +392,7 @@ export async function upsertPreferencesSynced(
 }
 
 export async function markPreferencesSynced(userId: string): Promise<void> {
-  return enqueueWrite(async () => {
+  return enqueueDb(async () => {
     const database = await initDatabase();
     await database.runAsync(
       `UPDATE user_preferences SET sync_status = 'synced' WHERE user_id = ?`,
@@ -395,7 +409,7 @@ export async function addPendingImageUpload(params: {
   paragraphId: string;
   localPath: string;
 }): Promise<void> {
-  return enqueueWrite(async () => {
+  return enqueueDb(async () => {
     const database = await initDatabase();
     await database.runAsync(
       `INSERT OR IGNORE INTO pending_image_uploads
@@ -409,30 +423,32 @@ export async function addPendingImageUpload(params: {
 export async function getPendingImageUploads(): Promise<
   Array<{ id: string; entryId: string; paragraphId: string; localPath: string }>
 > {
-  const database = await initDatabase();
-  const rows = await database.getAllAsync<{
-    id: string;
-    entry_id: string;
-    paragraph_id: string;
-    local_path: string;
-  }>(`SELECT id, entry_id, paragraph_id, local_path FROM pending_image_uploads`);
-  return rows.map((r) => ({
-    id: r.id,
-    entryId: r.entry_id,
-    paragraphId: r.paragraph_id,
-    localPath: r.local_path,
-  }));
+  return enqueueDb(async () => {
+    const database = await initDatabase();
+    const rows = await database.getAllAsync<{
+      id: string;
+      entry_id: string;
+      paragraph_id: string;
+      local_path: string;
+    }>(`SELECT id, entry_id, paragraph_id, local_path FROM pending_image_uploads`);
+    return rows.map((r) => ({
+      id: r.id,
+      entryId: r.entry_id,
+      paragraphId: r.paragraph_id,
+      localPath: r.local_path,
+    }));
+  });
 }
 
 export async function removePendingImageUpload(id: string): Promise<void> {
-  return enqueueWrite(async () => {
+  return enqueueDb(async () => {
     const database = await initDatabase();
     await database.runAsync(`DELETE FROM pending_image_uploads WHERE id = ?`, [id]);
   });
 }
 
 export async function removePendingImageUploadsForEntry(entryId: string): Promise<void> {
-  return enqueueWrite(async () => {
+  return enqueueDb(async () => {
     const database = await initDatabase();
     await database.runAsync(`DELETE FROM pending_image_uploads WHERE entry_id = ?`, [entryId]);
   });
@@ -443,25 +459,27 @@ export async function removePendingImageUploadsForEntry(entryId: string): Promis
 export async function getPendingEntries(userId: string): Promise<
   Array<{ id: string; syncStatus: SyncStatus; updatedAt: string }>
 > {
-  const database = await initDatabase();
-  const rows = await database.getAllAsync<{
-    id: string;
-    sync_status: string;
-    updated_at: string;
-  }>(
-    `SELECT id, sync_status, updated_at FROM journal_entries
-     WHERE user_id = ? AND sync_status != 'synced'`,
-    [userId]
-  );
-  return rows.map((r) => ({
-    id: r.id,
-    syncStatus: r.sync_status as SyncStatus,
-    updatedAt: r.updated_at,
-  }));
+  return enqueueDb(async () => {
+    const database = await initDatabase();
+    const rows = await database.getAllAsync<{
+      id: string;
+      sync_status: string;
+      updated_at: string;
+    }>(
+      `SELECT id, sync_status, updated_at FROM journal_entries
+       WHERE user_id = ? AND sync_status != 'synced'`,
+      [userId]
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      syncStatus: r.sync_status as SyncStatus,
+      updatedAt: r.updated_at,
+    }));
+  });
 }
 
 export async function markEntrySynced(entryId: string): Promise<void> {
-  return enqueueWrite(async () => {
+  return enqueueDb(async () => {
     const database = await initDatabase();
     await database.runAsync(
       `UPDATE journal_entries SET sync_status = 'synced' WHERE id = ?`,
