@@ -21,8 +21,11 @@ import { PillButton, scoreToDisplay } from "../common/ui";
 
 const PARAGRAPH_FONT_SIZE = 16;
 const PARAGRAPH_LINE_HEIGHT = 28;
+/** Match web `py-1` so ascenders are not clipped flush to the top edge. */
+const PARAGRAPH_VERTICAL_PADDING = 4;
 /** Empty / short paragraphs start at two lines of writing space. */
-const PARAGRAPH_MIN_HEIGHT = PARAGRAPH_LINE_HEIGHT * 2;
+const PARAGRAPH_MIN_HEIGHT =
+  PARAGRAPH_LINE_HEIGHT * 2 + PARAGRAPH_VERTICAL_PADDING * 2;
 
 interface Props {
   paragraph: JournalParagraph;
@@ -126,16 +129,21 @@ export function ParagraphBlock({
 
   return (
     <View className="relative mb-6 pl-3.5">
-      <View className="absolute left-0 top-3.5 h-[18px] w-1 rounded-sm bg-pen/45" />
+      <View
+        className="absolute left-0 h-[18px] w-1 rounded-sm bg-pen/45"
+        style={{ top: 14 + PARAGRAPH_VERTICAL_PADDING }}
+      />
       <TextInput
         ref={inputRef}
-        className="p-0 text-ink-900"
+        className="text-ink-900"
         style={{
           backgroundColor: colors.paper,
           fontFamily: fonts.mono,
           fontSize: PARAGRAPH_FONT_SIZE,
           minHeight: PARAGRAPH_MIN_HEIGHT,
-          padding: 0,
+          paddingHorizontal: 0,
+          paddingTop: PARAGRAPH_VERTICAL_PADDING,
+          paddingBottom: PARAGRAPH_VERTICAL_PADDING,
           ...(Platform.OS === "android"
             ? { includeFontPadding: false }
             : { lineHeight: PARAGRAPH_LINE_HEIGHT }),
