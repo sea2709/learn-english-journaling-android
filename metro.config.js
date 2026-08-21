@@ -1,7 +1,18 @@
+const path = require("path");
 const { getDefaultConfig } = require("expo/metro-config");
 const { withNativeWind } = require("nativewind/metro");
 
 const config = getDefaultConfig(__dirname);
+
+// Nested feature worktrees install their own node_modules; watching them
+// exhausts Linux inotify (ENOSPC) when starting Expo from the primary checkout.
+const worktreesPattern = new RegExp(
+  `${path.resolve(__dirname, ".worktrees").replace(/[/\\]/g, "[/\\\\]")}[/\\\\].*`
+);
+const existingBlockList = config.resolver.blockList;
+config.resolver.blockList = existingBlockList
+  ? [existingBlockList, worktreesPattern].flat()
+  : worktreesPattern;
 
 config.resolver.sourceExts = config.resolver.sourceExts.filter((ext) => ext !== "wasm");
 if (!config.resolver.assetExts.includes("wasm")) {
