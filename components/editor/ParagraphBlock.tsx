@@ -162,32 +162,29 @@ export function ParagraphBlock({
         textAlignVertical="top"
       />
 
-      <View
-        className="mt-3 flex-row flex-wrap items-center justify-between gap-2"
-        style={{ opacity: hasText ? 1 : 0, pointerEvents: hasText ? "auto" : "none" }}
-        accessibilityElementsHidden={!hasText}
-        importantForAccessibility={hasText ? "auto" : "no-hide-descendants"}
-      >
-        {isStale ? (
-          <Text className="text-[11px] font-semibold text-pen-muted">edited</Text>
-        ) : (
-          <View />
-        )}
-        <View className="flex-row flex-wrap items-center gap-2">
-          <PillButton
-            label="Ask questions"
-            onPress={() => setShowDiscussion((v) => !v)}
-          />
-          <PillButton
-            label={analyzing ? "Reviewing" : hasAnalysis ? "Re-review" : "Review"}
-            onPress={handleAnalyze}
-            loading={analyzing}
-            penAccent
-          />
+      {hasText && (
+        <View className="mt-3 flex-row flex-wrap items-center justify-between gap-2">
+          {isStale ? (
+            <Text className="text-[11px] font-semibold text-pen-muted">edited</Text>
+          ) : (
+            <View />
+          )}
+          <View className="flex-row flex-wrap items-center gap-2">
+            <PillButton
+              label="Ask questions"
+              onPress={() => setShowDiscussion((v) => !v)}
+            />
+            <PillButton
+              label={analyzing ? "Reviewing" : hasAnalysis ? "Re-review" : "Review"}
+              onPress={handleAnalyze}
+              loading={analyzing}
+              penAccent
+            />
+          </View>
         </View>
-      </View>
+      )}
 
-      {showDiscussion && (
+      {hasText && showDiscussion && (
         <DiscussionThread
           paragraphText={paragraph.text}
           analysis={paragraph.analysis}
@@ -197,14 +194,11 @@ export function ParagraphBlock({
         />
       )}
 
-      <Text
-        className="mt-2 text-xs text-ink-400"
-        style={{ opacity: hasText ? 1 : 0 }}
-        accessibilityElementsHidden={!hasText}
-        importantForAccessibility={hasText ? "auto" : "no-hide-descendants"}
-      >
-        Review focus: {formatFocusAreasSummary(preferences.focusAreas)}
-      </Text>
+      {hasText && (
+        <Text className="mt-2 text-xs text-ink-400">
+          Review focus: {formatFocusAreasSummary(preferences.focusAreas)}
+        </Text>
+      )}
 
       {hasAnalysis && paragraph.analysis && (
         <View className="mt-3.5 border-l-2 border-pen/30 pl-3">
