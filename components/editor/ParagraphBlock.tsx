@@ -21,7 +21,8 @@ import { PillButton, scoreToDisplay } from "../common/ui";
 
 const PARAGRAPH_FONT_SIZE = 16;
 const PARAGRAPH_LINE_HEIGHT = 28;
-const PARAGRAPH_MIN_HEIGHT = 88;
+/** Empty / short paragraphs start at two lines of writing space. */
+const PARAGRAPH_MIN_HEIGHT = PARAGRAPH_LINE_HEIGHT * 2;
 
 interface Props {
   paragraph: JournalParagraph;
