@@ -120,16 +120,26 @@ export default function JournalHomeScreen() {
   }
 
   async function handleSignOut() {
+    const doSignOut = async () => {
+      clearCurrentEntry();
+      await unload();
+      await signOut();
+      router.replace("/auth");
+    };
+
+    // RN Web's Alert.alert is a no-op; match web app and sign out immediately.
+    if (Platform.OS === "web") {
+      await doSignOut();
+      return;
+    }
+
     Alert.alert("Sign out?", "You will need to sign in again to continue writing.", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Sign out",
         style: "destructive",
-        onPress: async () => {
-          clearCurrentEntry();
-          await unload();
-          await signOut();
-          router.replace("/auth");
+        onPress: () => {
+          void doSignOut();
         },
       },
     ]);
