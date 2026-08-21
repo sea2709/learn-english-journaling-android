@@ -46,3 +46,4 @@ yarn-error.*
 
 # vendored llama.cpp native sources
 modules/llama-cpp/android/src/main/cpp/llama.cpp/
+.worktrees/
