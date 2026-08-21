@@ -9,6 +9,7 @@ import {
   CourierPrime_400Regular,
   CourierPrime_700Bold,
 } from "@expo-google-fonts/courier-prime";
+import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { supabase } from "../lib/supabase";
 import { initDatabase } from "../lib/database";
 import { useAuthStore } from "../store/auth";
@@ -29,6 +30,7 @@ export default function RootLayout() {
     Fraunces_600SemiBold,
     CourierPrime_400Regular,
     CourierPrime_700Bold,
+    ...FontAwesome.font,
   });
   const [dbReady, setDbReady] = useState(false);
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Redirect, useRootNavigationState } from "expo-router";
+import { EyeIcon } from "../components/chrome/icons";
 import { PillButton } from "../components/common/ui";
 import { SocialAuthButtons } from "../components/SocialAuthButtons";
 import type { SocialAuthProvider } from "../lib/oauth";
@@ -45,6 +46,9 @@ export default function AuthScreen() {
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
   const scrollFocusedInput = useRef<() => void>(() => {});
+  const nameInputRef = useRef<TextInput>(null);
+  const emailInputRef = useRef<TextInput>(null);
+  const passwordInputRef = useRef<TextInput>(null);
 
   const [mode, setMode] = useState<Mode>("login");
   const [step, setStep] = useState<Step>("choose");
@@ -141,6 +145,7 @@ export default function AuthScreen() {
   }
 
   async function handleSubmit() {
+    if (emailLoading) return;
     if (!email.trim() || !password.trim()) {
       setError("Please enter your email and password.");
       return;
@@ -179,6 +184,7 @@ export default function AuthScreen() {
   }
 
   async function handleForgotPassword() {
+    if (emailLoading) return;
     if (!email.trim()) {
       setError("Please enter your email.");
       return;
@@ -214,6 +220,17 @@ export default function AuthScreen() {
   function openWebPath(path: string) {
     if (!WEB_BASE_URL) return;
     void Linking.openURL(`${WEB_BASE_URL}${path}`);
+  }
+
+  function focusNextOrSubmit(
+    nextInput: RefObject<TextInput | null>,
+    submit: () => void | Promise<void>
+  ) {
+    if (Platform.OS === "web") {
+      void submit();
+      return;
+    }
+    nextInput.current?.focus();
   }
 
   const modeToggle = (
@@ -367,10 +384,14 @@ export default function AuthScreen() {
               <View>
                 <Text className={labelClassName}>Email</Text>
                 <TextInput
+                  ref={emailInputRef}
                   className={fieldClassName}
                   value={email}
                   onChangeText={setEmail}
                   onFocus={handleInputFocus}
+                  onSubmitEditing={() => void handleForgotPassword()}
+                  returnKeyType="go"
+                  submitBehavior="blurAndSubmit"
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -402,10 +423,16 @@ export default function AuthScreen() {
                   <View>
                     <Text className={labelClassName}>Name (optional)</Text>
                     <TextInput
+                      ref={nameInputRef}
                       className={fieldClassName}
                       value={name}
                       onChangeText={setName}
                       onFocus={handleInputFocus}
+                      onSubmitEditing={() =>
+                        focusNextOrSubmit(emailInputRef, handleSubmit)
+                      }
+                      returnKeyType="next"
+                      submitBehavior="submit"
                       autoCapitalize="words"
                       autoComplete="name"
                       editable={!emailLoading}
@@ -417,10 +444,16 @@ export default function AuthScreen() {
                 <View>
                   <Text className={labelClassName}>Email</Text>
                   <TextInput
+                    ref={emailInputRef}
                     className={fieldClassName}
                     value={email}
                     onChangeText={setEmail}
                     onFocus={handleInputFocus}
+                    onSubmitEditing={() =>
+                      focusNextOrSubmit(passwordInputRef, handleSubmit)
+                    }
+                    returnKeyType="next"
+                    submitBehavior="submit"
                     keyboardType="email-address"
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -452,10 +485,14 @@ export default function AuthScreen() {
                   </View>
                   <View className="relative">
                     <TextInput
-                      className={`${fieldClassName} pr-14`}
+                      ref={passwordInputRef}
+                      className={`${fieldClassName} pr-10`}
                       value={password}
                       onChangeText={setPassword}
                       onFocus={handleInputFocus}
+                      onSubmitEditing={() => void handleSubmit()}
+                      returnKeyType="go"
+                      submitBehavior="blurAndSubmit"
                       secureTextEntry={!showPassword}
                       autoComplete={mode === "register" ? "new-password" : "current-password"}
                       editable={!emailLoading}
@@ -468,9 +505,7 @@ export default function AuthScreen() {
                       disabled={emailLoading}
                       accessibilityLabel={showPassword ? "Hide password" : "Show password"}
                     >
-                      <Text className="text-xs font-medium text-ink-400">
-                        {showPassword ? "Hide" : "Show"}
-                      </Text>
+                      <EyeIcon crossed={showPassword} />
                     </TouchableOpacity>
                   </View>
                   {mode === "register" ? (

@@ -1,0 +1,38 @@
+---
+description: Prefer FontAwesome icons; custom SVG only as a fallback
+alwaysApply: true
+---
+
+# FontAwesome icons first
+
+Use FontAwesome from `@expo/vector-icons` for UI glyphs. Hand-drawn SVG is a fallback, not the default.
+
+## Order
+
+1. Use an existing named export from `components/chrome/icons.tsx` if one already matches.
+2. Otherwise use a FontAwesome glyph (`bars`, `cog`, `key`, `comment`, `image`, `eye`, …). Add a named wrapper in `icons.tsx` when the same glyph is reused or needs a default size/color.
+3. If no FontAwesome glyph is a reasonable match, then add a custom SVG in `icons.tsx`.
+
+Browse names at https://icons.expo.fyi (FontAwesome set). Import with `import FontAwesome from "@expo/vector-icons/FontAwesome"`.
+
+## Defaults
+
+- Menu items: 14px, `colors.pen`
+- Toolbar / field buttons: 16px
+- Muted field controls (e.g. show password): `colors.ink400`
+- Preload `FontAwesome.font` in `app/_layout.tsx` via `useFonts` so icons do not flash empty
+
+## Do not replace with FontAwesome
+
+- Brand logos (Google, Facebook) — keep the official colored SVGs
+- Charts or decorative illustrations (e.g. score ring)
+
+Icon *meaning* still follows the web app. The glyph source may be FontAwesome instead of copied Heroicons paths.
+
+```tsx
+// ❌ BAD — copy a Heroicons path when FontAwesome already has it
+<Svg viewBox="0 0 24 24"><Path d="M3.75 6.75h16.5…" /></Svg>
+
+// ✅ GOOD
+<FontAwesome name="bars" size={16} color={colors.pen} />
+```
