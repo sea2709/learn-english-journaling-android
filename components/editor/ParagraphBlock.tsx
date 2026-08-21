@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   LayoutAnimation,
-  Platform,
   type NativeSyntheticEvent,
   type TextInputKeyPressEventData,
   type TextInputSelectionChangeEventData,
@@ -21,7 +20,7 @@ import { PillButton, scoreToDisplay } from "../common/ui";
 
 const PARAGRAPH_FONT_SIZE = 16;
 const PARAGRAPH_LINE_HEIGHT = 28;
-/** Match web `py-1` so ascenders are not clipped flush to the top edge. */
+/** Match web `py-1`. */
 const PARAGRAPH_VERTICAL_PADDING = 4;
 /** Empty / short paragraphs start at two lines of writing space. */
 const PARAGRAPH_MIN_HEIGHT =
@@ -140,13 +139,11 @@ export function ParagraphBlock({
           backgroundColor: colors.paper,
           fontFamily: fonts.mono,
           fontSize: PARAGRAPH_FONT_SIZE,
+          lineHeight: PARAGRAPH_LINE_HEIGHT,
           minHeight: PARAGRAPH_MIN_HEIGHT,
           paddingHorizontal: 0,
           paddingTop: PARAGRAPH_VERTICAL_PADDING,
           paddingBottom: PARAGRAPH_VERTICAL_PADDING,
-          ...(Platform.OS === "android"
-            ? { includeFontPadding: false }
-            : { lineHeight: PARAGRAPH_LINE_HEIGHT }),
         }}
         value={paragraph.text}
         onChangeText={handleTextChange}
